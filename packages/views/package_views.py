@@ -67,17 +67,49 @@ def package_detail(request, package_name):
 
     # Get binaries for selected version
     binaries = None
-    dependencies = None
+    binaries_with_deps = []
     if selected_version:
         binaries = selected_version.binaries.all()
-        dependencies = selected_version.dependencies.select_related('requires_package')
+
+        # Extract dependencies from dependency_graph stored in each binary
+        # Dependencies can differ per binary based on options/settings
+        for binary in binaries:
+            dependencies = []
+            if binary.dependency_graph:
+                graph = binary.dependency_graph
+                nodes = graph.get('graph', {}).get('nodes', {})
+
+                for node_id, node in nodes.items():
+                    # Skip root node (the package itself)
+                    if node_id == "0":
+                        continue
+
+                    # Parse package reference (e.g., "boost/1.81.0" or "boost/1.81.0#hash")
+                    ref = node.get('ref', '')
+                    if '/' not in ref:
+                        continue
+
+                    dep_name, dep_version_with_hash = ref.split('/', 1)
+                    # Remove recipe revision hash if present
+                    dep_version = dep_version_with_hash.split('#')[0]
+
+                    dependencies.append({
+                        'name': dep_name,
+                        'version': dep_version,
+                        'package_id': node.get('package_id', 'unknown')
+                    })
+
+            binaries_with_deps.append({
+                'binary': binary,
+                'dependencies': dependencies
+            })
 
     context = {
         'package': package,
         'versions': versions,
         'selected_version': selected_version,
         'binaries': binaries,
-        'dependencies': dependencies,
+        'binaries_with_deps': binaries_with_deps,
         'topics': package.get_topics_list(),
     }
     return render(request, 'packages/package_detail.html', context)

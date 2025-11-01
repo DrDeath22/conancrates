@@ -20,6 +20,10 @@ class BinaryPackage(models.Model):
     # Additional options (JSON field for flexibility)
     options = models.JSONField(default=dict, blank=True)
 
+    # Dependency graph from conan graph info (stores exact package_ids of dependencies)
+    dependency_graph = models.JSONField(default=dict, blank=True,
+                                       help_text="Full Conan dependency graph with resolved package_ids")
+
     # Binary file
     binary_file = models.FileField(upload_to='binaries/', blank=True, null=True)
     file_size = models.BigIntegerField(default=0, help_text="File size in bytes")

@@ -13,6 +13,7 @@ class PackageVersion(models.Model):
     # Recipe information
     recipe_revision = models.CharField(max_length=64, blank=True, help_text="Git/hash of recipe")
     recipe_file = models.FileField(upload_to='recipes/', blank=True, null=True)
+    recipe_content = models.TextField(blank=True, help_text="Content of conanfile.py")
 
     # Settings that affect this version
     description = models.TextField(blank=True)

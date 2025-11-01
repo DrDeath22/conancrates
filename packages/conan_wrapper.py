@@ -6,6 +6,7 @@ for dependency resolution and package downloads. It wraps Conan CLI commands
 to ensure 100% identical dependency resolution logic.
 """
 import os
+import sys
 import json
 import shutil
 import tempfile
@@ -19,6 +20,30 @@ class ConanError(Exception):
     pass
 
 
+def get_conan_executable() -> str:
+    """
+    Get the path to the conan executable.
+
+    For development, tries venv first. For production, uses system conan.
+
+    Returns:
+        str: Path to conan executable
+    """
+    # Try to find venv conan (development)
+    if hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix):
+        # We're in a virtual environment
+        if sys.platform == 'win32':
+            venv_conan = Path(sys.prefix) / 'Scripts' / 'conan.exe'
+        else:
+            venv_conan = Path(sys.prefix) / 'bin' / 'conan'
+
+        if venv_conan.exists():
+            return str(venv_conan)
+
+    # Fall back to system conan (production)
+    return 'conan'
+
+
 def check_conan_available() -> bool:
     """
     Check if Conan is available in the system
@@ -27,8 +52,9 @@ def check_conan_available() -> bool:
         bool: True if Conan is available, False otherwise
     """
     try:
+        conan_exe = get_conan_executable()
         result = subprocess.run(
-            ['conan', '--version'],
+            [conan_exe, '--version'],
             capture_output=True,
             text=True,
             timeout=10
@@ -46,8 +72,9 @@ def get_conan_version() -> Optional[str]:
         str: Version string or None if Conan is not available
     """
     try:
+        conan_exe = get_conan_executable()
         result = subprocess.run(
-            ['conan', '--version'],
+            [conan_exe, '--version'],
             capture_output=True,
             text=True,
             timeout=10
@@ -168,11 +195,14 @@ def resolve_dependencies(package_name: str, version: str,
         )
 
         # Build conan install command
+        conan_exe = get_conan_executable()
         cmd = [
-            'conan', 'install',
+            conan_exe, 'install',
             str(conanfile_path.parent),
             '--profile', str(profile_path),
             '--format', 'json',
+            '--build=never',  # Never build - only use what's in cache
+            '--update=False',  # Don't check remotes for updates
         ]
 
         # Add remote if specified
@@ -181,7 +211,7 @@ def resolve_dependencies(package_name: str, version: str,
             pass
 
         try:
-            # Run conan install
+            # Run conan install using only local cache (no remotes configured)
             result = subprocess.run(
                 cmd,
                 capture_output=True,
@@ -346,8 +376,9 @@ def download_packages(package_list: List[Dict],
             pkg_id = pkg.get('package_id', 'unknown')
 
             # Use conan download command
+            conan_exe = get_conan_executable()
             cmd = [
-                'conan', 'download',
+                conan_exe, 'download',
                 f"{pkg_name}/{pkg_version}",
                 '--profile', str(profile_path)
             ]
