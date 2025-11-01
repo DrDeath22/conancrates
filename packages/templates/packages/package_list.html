@@ -1,0 +1,82 @@
+{% extends "packages/base.html" %}
+
+{% block title %}All Packages - ConanCrates{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">All Packages</h1>
+
+<div class="search-box">
+    <form method="get" action="{% url 'packages:package_list' %}">
+        <input type="text" name="q" placeholder="Search packages..." value="{{ search_query }}">
+        <div style="display: flex; gap: 1rem; margin-top: 1rem;">
+            <select name="license" onchange="this.form.submit()" style="padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+                <option value="">All Licenses</option>
+                {% for license in all_licenses %}
+                <option value="{{ license }}" {% if license == current_license %}selected{% endif %}>{{ license }}</option>
+                {% endfor %}
+            </select>
+            <select name="order" onchange="this.form.submit()" style="padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+                <option value="-created_at" {% if current_order == '-created_at' %}selected{% endif %}>Newest First</option>
+                <option value="created_at" {% if current_order == 'created_at' %}selected{% endif %}>Oldest First</option>
+                <option value="name" {% if current_order == 'name' %}selected{% endif %}>Name (A-Z)</option>
+                <option value="-name" {% if current_order == '-name' %}selected{% endif %}>Name (Z-A)</option>
+            </select>
+            <button type="submit" class="btn">Search</button>
+            {% if search_query or current_license %}
+            <a href="{% url 'packages:package_list' %}" class="btn btn-secondary">Clear</a>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+{% if current_topic %}
+<div class="card" style="background: #e3f2fd;">
+    <p><strong>Filtering by topic:</strong> {{ current_topic.name }} <a href="{% url 'packages:package_list' %}" style="margin-left: 1rem;">Clear filter</a></p>
+</div>
+{% endif %}
+
+{% if page_obj %}
+<div class="package-grid">
+    {% for package in page_obj %}
+    <div class="package-card">
+        <h3><a href="{% url 'packages:package_detail' package.name %}">{{ package.name }}</a></h3>
+        <p>{{ package.description|truncatewords:30 }}</p>
+        <div style="margin-top: 1rem;">
+            {% if package.license %}
+            <span class="tag license">{{ package.license }}</span>
+            {% endif %}
+            {% if package.author %}
+            <span class="tag">{{ package.author }}</span>
+            {% endif %}
+            <span class="tag">{{ package.versions.count }} version{{ package.versions.count|pluralize }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_license %}&license={{ current_license }}{% endif %}{% if current_order %}&order={{ current_order }}{% endif %}">Previous</a>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span class="current">{{ num }}</span>
+        {% else %}
+        <a href="?page={{ num }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_license %}&license={{ current_license }}{% endif %}{% if current_order %}&order={{ current_order }}{% endif %}">{{ num }}</a>
+        {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}{% if search_query %}&q={{ search_query }}{% endif %}{% if current_license %}&license={{ current_license }}{% endif %}{% if current_order %}&order={{ current_order }}{% endif %}">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="card">
+    <p style="text-align: center; color: #666; padding: 2rem;">No packages found.</p>
+</div>
+{% endif %}
+{% endblock %}

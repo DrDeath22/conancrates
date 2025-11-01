@@ -1,0 +1,27 @@
+{% extends "packages/base.html" %}
+
+{% block title %}Topics - ConanCrates{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom: 1.5rem;">Browse by Topic</h1>
+
+{% if topics %}
+<div class="package-grid">
+    {% for topic in topics %}
+    <div class="package-card">
+        <h3><a href="{% url 'packages:topic_detail' topic.slug %}">{{ topic.name }}</a></h3>
+        {% if topic.description %}
+        <p>{{ topic.description }}</p>
+        {% endif %}
+        <div style="margin-top: 1rem;">
+            <span class="tag">{{ topic.pkg_count }} package{{ topic.pkg_count|pluralize }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card">
+    <p style="text-align: center; color: #666; padding: 2rem;">No topics yet.</p>
+</div>
+{% endif %}
+{% endblock %}

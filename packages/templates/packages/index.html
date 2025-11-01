@@ -1,0 +1,82 @@
+{% extends "packages/base.html" %}
+
+{% block title %}ConanCrates - Home{% endblock %}
+
+{% block content %}
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 3rem 2rem; border-radius: 8px; margin-bottom: 2rem; text-align: center;">
+    <h1 style="font-size: 3rem; margin-bottom: 1rem;">ConanCrates</h1>
+    <p style="font-size: 1.3rem; margin-bottom: 2rem;">Your Private C++ Package Registry for Conan</p>
+    <div style="display: flex; gap: 1rem; justify-content: center;">
+        <a href="{% url 'packages:package_list' %}" class="btn" style="background: white; color: #667eea; font-weight: bold;">Browse Packages</a>
+        <a href="/admin/" class="btn" style="background: rgba(255,255,255,0.2); color: white; font-weight: bold;">Admin Panel</a>
+    </div>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <h3>{{ total_packages }}</h3>
+        <p>Total Packages</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ total_versions }}</h3>
+        <p>Package Versions</p>
+    </div>
+    <div class="stat-card">
+        <h3>{{ total_binaries }}</h3>
+        <p>Binary Packages</p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Recently Added Packages</h2>
+    {% if recent_packages %}
+        <div class="package-grid">
+            {% for package in recent_packages %}
+            <div class="package-card">
+                <h3><a href="{% url 'packages:package_detail' package.name %}">{{ package.name }}</a></h3>
+                <p>{{ package.description|truncatewords:20 }}</p>
+                <div>
+                    {% if package.license %}
+                    <span class="tag license">{{ package.license }}</span>
+                    {% endif %}
+                    <span class="tag">{{ package.versions.count }} version{{ package.versions.count|pluralize }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p style="color: #666; text-align: center; padding: 2rem;">No packages yet. <a href="/admin/">Add some packages</a> to get started!</p>
+    {% endif %}
+</div>
+
+{% if popular_topics %}
+<div class="card">
+    <h2>Popular Topics</h2>
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        {% for topic in popular_topics %}
+        <a href="{% url 'packages:topic_detail' topic.slug %}" class="tag" style="text-decoration: none;">
+            {{ topic.name }} ({{ topic.pkg_count }})
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="card" style="background: #f8f9fa;">
+    <h2>Getting Started</h2>
+    <p style="margin-bottom: 1rem;">To use this Conan registry in your projects:</p>
+    <ol style="margin-left: 2rem; color: #555;">
+        <li style="margin-bottom: 0.5rem;">Add this registry as a remote: <code style="background: white; padding: 4px 8px; border-radius: 4px;">conan remote add conancrates http://localhost:8000</code></li>
+        <li style="margin-bottom: 0.5rem;">Search for packages: <code style="background: white; padding: 4px 8px; border-radius: 4px;">conan search "*" -r=conancrates</code></li>
+        <li>Install packages in your conanfile.txt or conanfile.py</li>
+    </ol>
+
+    <h3 style="margin-top: 2rem;">Without Conan Client</h3>
+    <p style="margin-bottom: 1rem;">You can also download packages directly without installing Conan:</p>
+    <ul style="margin-left: 2rem; color: #555;">
+        <li style="margin-bottom: 0.5rem;">Browse packages and click "Download" buttons on package pages</li>
+        <li style="margin-bottom: 0.5rem;">Download the manifest JSON with all package metadata and URLs</li>
+        <li style="margin-bottom: 0.5rem;">Use our <a href="{% url 'packages:download_script' %}" style="color: #1976d2;">download script</a> for automated downloads</li>
+    </ul>
+</div>
+{% endblock %}

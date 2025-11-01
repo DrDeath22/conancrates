@@ -1,0 +1,222 @@
+{% extends "packages/base.html" %}
+
+{% block title %}{{ package.name }} - ConanCrates{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1rem;">
+    <a href="{% url 'packages:package_list' %}" style="color: #3498db; text-decoration: none;">&larr; Back to packages</a>
+</div>
+
+<div class="card">
+    <h1 style="margin-bottom: 0.5rem;">{{ package.name }}</h1>
+    {% if package.author %}
+    <p style="color: #666; margin-bottom: 1rem;">by {{ package.author }}</p>
+    {% endif %}
+
+    {% if package.description %}
+    <p style="margin-bottom: 1.5rem;">{{ package.description }}</p>
+    {% endif %}
+
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+        {% if package.license %}
+        <span class="tag license">License: {{ package.license }}</span>
+        {% endif %}
+        {% if package.homepage %}
+        <a href="{{ package.homepage }}" target="_blank" class="tag" style="text-decoration: none; background: #e3f2fd; color: #1976d2;">Homepage</a>
+        {% endif %}
+        <span class="tag">{{ package.download_count }} downloads</span>
+    </div>
+
+    {% if topics %}
+    <div style="margin-bottom: 1rem;">
+        <strong>Topics:</strong>
+        {% for topic in topics %}
+        <span class="tag">{{ topic }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Versions</h2>
+    <div style="margin-bottom: 1.5rem;">
+        <label for="version-select" style="margin-right: 1rem;"><strong>Select version:</strong></label>
+        <select id="version-select" onchange="window.location.href='?version='+this.value" style="padding: 8px; border: 2px solid #ddd; border-radius: 4px;">
+            {% for version in versions %}
+            <option value="{{ version.version }}" {% if version == selected_version %}selected{% endif %}>
+                {{ version.version }} {% if version == versions.first %}(latest){% endif %}
+            </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    {% if selected_version %}
+    <div style="background: #f8f9fa; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+        <p><strong>Version:</strong> {{ selected_version.version }}</p>
+        {% if selected_version.recipe_revision %}
+        <p><strong>Recipe Revision:</strong> <code style="background: white; padding: 2px 6px; border-radius: 3px;">{{ selected_version.recipe_revision }}</code></p>
+        {% endif %}
+        <p><strong>Uploaded:</strong> {{ selected_version.created_at|date:"F d, Y" }}</p>
+        {% if selected_version.uploaded_by %}
+        <p><strong>By:</strong> {{ selected_version.uploaded_by.username }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+{% if selected_version %}
+<div class="card" style="background: #e8f5e9;">
+    <h2>Download Options</h2>
+    <p style="margin-bottom: 1rem;">Download this package without using the Conan client:</p>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+        <a href="{% url 'packages:download_manifest' package.name selected_version.version %}"
+           class="btn" style="background: #2e7d32;">
+           Download Manifest (JSON)
+        </a>
+        <a href="{% url 'packages:download_bundle' package.name selected_version.version %}"
+           id="bundle-download-btn"
+           class="btn" style="background: #1976d2;">
+           Download ZIP Bundle (with dependencies)
+        </a>
+    </div>
+    <div id="bundle-info" style="margin-top: 1rem; padding: 1rem; background: white; border-radius: 4px; display: none;">
+        <h3 style="margin-bottom: 0.5rem; font-size: 1rem;">Bundle Contents:</h3>
+        <div id="bundle-details"></div>
+    </div>
+    <p style="margin-top: 1rem; font-size: 0.9rem; color: #666;">
+        <strong>Manifest:</strong> JSON file with all package metadata and download URLs.<br>
+        <strong>ZIP Bundle:</strong> Complete package with all dependencies bundled in a single ZIP file.
+    </p>
+</div>
+
+<script>
+// Fetch bundle preview on page load
+fetch('{% url "packages:bundle_preview" package.name selected_version.version %}')
+    .then(response => response.json())
+    .then(data => {
+        const bundleInfo = document.getElementById('bundle-info');
+        const bundleDetails = document.getElementById('bundle-details');
+        const bundleBtn = document.getElementById('bundle-download-btn');
+
+        // Format file size
+        const formatSize = (bytes) => {
+            if (bytes >= 1024 * 1024 * 1024) {
+                return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+            } else if (bytes >= 1024 * 1024) {
+                return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+            } else if (bytes >= 1024) {
+                return (bytes / 1024).toFixed(2) + ' KB';
+            } else {
+                return bytes + ' bytes';
+            }
+        };
+
+        // Build details HTML
+        let html = '<ul style="margin: 0.5rem 0 0 1.5rem;">';
+        data.files.forEach(file => {
+            const typeTag = file.type === 'main' ? '<strong>(main)</strong>' : '(dependency)';
+            html += `<li>${file.package}/${file.version} ${typeTag} - ${formatSize(file.size)}</li>`;
+        });
+        html += '</ul>';
+        html += `<p style="margin-top: 1rem;"><strong>Total:</strong> ${data.file_count} file(s), ${formatSize(data.total_size)}</p>`;
+
+        bundleDetails.innerHTML = html;
+        bundleInfo.style.display = 'block';
+
+        // Update button text with size
+        bundleBtn.innerHTML = `Download ZIP Bundle (${formatSize(data.total_size)})`;
+    })
+    .catch(error => {
+        console.error('Error fetching bundle preview:', error);
+    });
+</script>
+{% endif %}
+
+{% if dependencies %}
+<div class="card">
+    <h2>Dependencies</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>Package</th>
+                <th>Version Requirement</th>
+                <th>Type</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dep in dependencies %}
+            <tr>
+                <td><a href="{% url 'packages:package_detail' dep.requires_package.name %}">{{ dep.requires_package.name }}</a></td>
+                <td><code style="background: #f8f9fa; padding: 2px 6px; border-radius: 3px;">{{ dep.version_requirement }}</code></td>
+                <td><span class="tag">{{ dep.get_dependency_type_display }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% if binaries %}
+<div class="card">
+    <h2>Available Binaries</h2>
+    <p style="color: #666; margin-bottom: 1rem;">Pre-compiled binaries for version {{ selected_version.version }}</p>
+    <table>
+        <thead>
+            <tr>
+                <th>OS</th>
+                <th>Architecture</th>
+                <th>Compiler</th>
+                <th>Build Type</th>
+                <th>Size</th>
+                <th>Downloads</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for binary in binaries %}
+            <tr>
+                <td><span class="tag">{{ binary.os|default:"Any" }}</span></td>
+                <td><span class="tag">{{ binary.arch|default:"Any" }}</span></td>
+                <td>
+                    {% if binary.compiler %}
+                    {{ binary.compiler }}
+                    {% if binary.compiler_version %}{{ binary.compiler_version }}{% endif %}
+                    {% else %}
+                    Any
+                    {% endif %}
+                </td>
+                <td>
+                    {% if binary.build_type == 'Release' %}
+                    <span class="tag" style="background: #e8f5e9; color: #2e7d32;">{{ binary.build_type }}</span>
+                    {% elif binary.build_type == 'Debug' %}
+                    <span class="tag" style="background: #fff3e0; color: #e65100;">{{ binary.build_type }}</span>
+                    {% else %}
+                    <span class="tag">{{ binary.build_type|default:"Any" }}</span>
+                    {% endif %}
+                </td>
+                <td>{{ binary.file_size|filesizeformat }}</td>
+                <td>{{ binary.download_count }}</td>
+                <td>
+                    <a href="{% url 'packages:download_binary' package.name selected_version.version binary.package_id %}"
+                       style="color: #1976d2; text-decoration: none; font-weight: bold;">
+                       Download
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<div class="card" style="background: #f8f9fa;">
+    <h2>Installation</h2>
+    <p style="margin-bottom: 1rem;">Add to your <strong>conanfile.txt</strong>:</p>
+    <pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>[requires]
+{{ package.name }}/{{ selected_version.version }}</code></pre>
+
+    <p style="margin: 1rem 0;">Or in your <strong>conanfile.py</strong>:</p>
+    <pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>class MyProject(ConanFile):
+    requires = "{{ package.name }}/{{ selected_version.version }}"</code></pre>
+</div>
+{% endblock %}

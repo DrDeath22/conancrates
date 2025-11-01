@@ -1,0 +1,59 @@
+{% extends "packages/base.html" %}
+
+{% block title %}{{ topic.name }} - Topics - ConanCrates{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 1rem;">
+    <a href="{% url 'packages:topic_list' %}" style="color: #3498db; text-decoration: none;">&larr; Back to topics</a>
+</div>
+
+<div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+    <h1>{{ topic.name }}</h1>
+    {% if topic.description %}
+    <p style="font-size: 1.1rem; margin-top: 0.5rem;">{{ topic.description }}</p>
+    {% endif %}
+    <p style="margin-top: 1rem; opacity: 0.9;">{{ page_obj.paginator.count }} package{{ page_obj.paginator.count|pluralize }}</p>
+</div>
+
+{% if page_obj %}
+<div class="package-grid">
+    {% for package in page_obj %}
+    <div class="package-card">
+        <h3><a href="{% url 'packages:package_detail' package.name %}">{{ package.name }}</a></h3>
+        <p>{{ package.description|truncatewords:30 }}</p>
+        <div style="margin-top: 1rem;">
+            {% if package.license %}
+            <span class="tag license">{{ package.license }}</span>
+            {% endif %}
+            <span class="tag">{{ package.versions.count }} version{{ package.versions.count|pluralize }}</span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if page_obj.has_other_pages %}
+<div class="pagination">
+    {% if page_obj.has_previous %}
+    <a href="?page={{ page_obj.previous_page_number }}">Previous</a>
+    {% endif %}
+
+    {% for num in page_obj.paginator.page_range %}
+        {% if page_obj.number == num %}
+        <span class="current">{{ num }}</span>
+        {% else %}
+        <a href="?page={{ num }}">{{ num }}</a>
+        {% endif %}
+    {% endfor %}
+
+    {% if page_obj.has_next %}
+    <a href="?page={{ page_obj.next_page_number }}">Next</a>
+    {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="card">
+    <p style="text-align: center; color: #666; padding: 2rem;">No packages in this topic yet.</p>
+</div>
+{% endif %}
+{% endblock %}
