@@ -2,6 +2,12 @@
 
 A private C++ package registry for Conan packages, similar to Kellnr for Rust or crates.io.
 
+**Key Documentation:**
+- [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) - How to download packages without Conan client
+- [CONAN_INTEGRATION.md](CONAN_INTEGRATION.md) - Technical details on Conan-powered resolution
+- [STORAGE_AND_UPLOAD.md](STORAGE_AND_UPLOAD.md) - How to enable real file storage and uploads
+- [MINIO_SETUP.md](MINIO_SETUP.md) - MinIO setup guide (configured and ready!)
+
 ## Project Structure
 
 ```

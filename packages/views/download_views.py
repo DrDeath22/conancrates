@@ -32,15 +32,41 @@ def download_binary(request, package_name, version, binary_id):
     package.download_count += 1
     package.save()
 
-    # For now, return a placeholder since we don't have actual files
-    # In production, this would return: FileResponse(binary.binary_file.open('rb'), as_attachment=True)
+    # Serve actual file if it exists
+    if binary.binary_file and binary.binary_file.name:
+        try:
+            # For cloud storage (MinIO/S3), you could return a redirect:
+            # from django.http import HttpResponseRedirect
+            # return HttpResponseRedirect(binary.binary_file.url)
+
+            # For local filesystem, stream the file
+            return FileResponse(
+                binary.binary_file.open('rb'),
+                as_attachment=True,
+                filename=f"{package_name}-{version}-{binary_id}.tar.gz",
+                content_type='application/gzip'
+            )
+        except Exception as e:
+            return HttpResponse(
+                f"Error reading file: {str(e)}\n"
+                f"File path: {binary.binary_file.name}",
+                status=500,
+                content_type='text/plain'
+            )
+
+    # No file uploaded yet - return helpful placeholder
     response = HttpResponse(
         f"Binary download: {package_name}/{version} - {binary.get_config_string()}\n"
-        f"Package ID: {binary_id}\n"
-        f"This is a placeholder. In production, the actual binary file would be downloaded.",
-        content_type='text/plain'
+        f"Package ID: {binary_id}\n\n"
+        f"No file uploaded yet for this binary.\n\n"
+        f"To upload a file:\n"
+        f"1. Log into Django admin at /admin/\n"
+        f"2. Navigate to Binary Packages\n"
+        f"3. Edit this binary and upload a file\n",
+        content_type='text/plain',
+        status=404
     )
-    response['Content-Disposition'] = f'attachment; filename="{package_name}-{version}-{binary_id}.tar.gz"'
+    response['Content-Disposition'] = f'attachment; filename="{package_name}-{version}-{binary_id}.txt"'
     return response
 
 
