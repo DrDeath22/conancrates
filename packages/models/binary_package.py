@@ -28,6 +28,10 @@ class BinaryPackage(models.Model):
     binary_file = models.FileField(upload_to='binaries/', blank=True, null=True)
     file_size = models.BigIntegerField(default=0, help_text="File size in bytes")
 
+    # Rust crate file (.crate archive)
+    rust_crate_file = models.FileField(upload_to='rust_crates/', blank=True, null=True,
+                                       help_text="Generated Rust -sys crate archive")
+
     # Checksums
     sha256 = models.CharField(max_length=64, blank=True)
 

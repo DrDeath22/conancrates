@@ -625,6 +625,37 @@ def cmd_upload(args):
         return 1
     else:
         print(f"\n✓ All packages uploaded successfully!")
+
+        # Generate Rust crate (unless --no-rust specified)
+        no_rust = getattr(args, 'no_rust', False)
+        if not no_rust:
+            print(f"\n{'='*60}")
+            print(f"Generating Rust Crate...")
+            print(f"{'='*60}\n")
+
+            # Create a mock args object for rust crate generation
+            class RustArgs:
+                pass
+
+            rust_args = RustArgs()
+            rust_args.package_ref = package_ref
+            rust_args.profile = profile
+            rust_args.output = './rust_crates'
+
+            rust_result = cmd_generate_rust_crate(rust_args)
+            if isinstance(rust_result, tuple):
+                exit_code, crate_path = rust_result
+                if exit_code == 0:
+                    # TODO: Upload the .crate file to the server
+                    # This would require an API endpoint to accept rust crate uploads
+                    print(f"\n✓ Rust crate available at: {crate_path}")
+                else:
+                    print(f"\n⚠ Warning: Rust crate generation failed, but upload was successful")
+            elif rust_result != 0:
+                print(f"\n⚠ Warning: Rust crate generation failed, but upload was successful")
+        else:
+            print(f"\nℹ Skipped Rust crate generation (--no-rust specified)")
+
         return 0
 
 
@@ -1038,6 +1069,273 @@ def cmd_download(args):
         return 1
 
 
+def cmd_generate_rust_crate(args):
+    """Generate a Rust crate from a Conan package in the cache."""
+    package_ref = args.package_ref
+    profile = args.profile
+    output_dir = args.output or './rust_crates'
+
+    print(f"ConanCrates Rust Crate Generator")
+    print(f"{'='*60}")
+    print(f"Package: {package_ref}")
+    print(f"Profile: {profile}")
+    print(f"Output: {output_dir}")
+    print(f"{'='*60}\n")
+
+    # Get package cache path
+    cache_path = get_package_cache_path(package_ref)
+    if not cache_path:
+        print(f"✗ Error: Package {package_ref} not found in Conan cache")
+        print(f"  Run: conan create <path> or download it first")
+        return 1
+
+    # Get binary package path
+    package_ids = get_package_binaries(package_ref, profile)
+    if not package_ids:
+        print(f"✗ Error: No binary package found for profile {profile}")
+        return 1
+
+    package_id = package_ids[0]
+    binary_path = get_binary_package_path(package_ref, package_id)
+    if not binary_path:
+        print(f"✗ Error: Binary package path not found for package_id {package_id}")
+        return 1
+
+    print(f"Found binary package: {binary_path}\n")
+
+    # Parse package name and version
+    if '/' not in package_ref:
+        print(f"✗ Error: Invalid package reference format. Expected: name/version")
+        return 1
+
+    pkg_name, pkg_version = package_ref.split('/', 1)
+    crate_name = f"{pkg_name.replace('_', '-')}-sys"
+
+    # Create output directory
+    crate_dir = Path(output_dir) / crate_name
+    crate_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Generating Rust crate: {crate_name}")
+    print(f"{'='*60}\n")
+
+    # Scan binary package for libraries and headers
+    binary_path = Path(binary_path)
+    lib_dir = binary_path / 'lib'
+    include_dir = binary_path / 'include'
+
+    # Find libraries
+    libraries = []
+    if lib_dir.exists():
+        for lib_file in lib_dir.iterdir():
+            if lib_file.suffix in ['.a', '.lib', '.so', '.dylib']:
+                # Extract library name (remove lib prefix and extension)
+                lib_name = lib_file.stem
+                if lib_name.startswith('lib'):
+                    lib_name = lib_name[3:]
+                libraries.append((lib_name, lib_file))
+
+    if not libraries:
+        print(f"⚠ Warning: No libraries found in {lib_dir}")
+    else:
+        print(f"Found {len(libraries)} librar{'y' if len(libraries) == 1 else 'ies'}:")
+        for lib_name, lib_file in libraries:
+            print(f"  - {lib_name} ({lib_file.name})")
+    print()
+
+    # Find headers
+    headers = []
+    if include_dir.exists():
+        for header_file in include_dir.rglob('*.h'):
+            headers.append(header_file)
+        for header_file in include_dir.rglob('*.hpp'):
+            headers.append(header_file)
+
+    if not headers:
+        print(f"⚠ Warning: No headers found in {include_dir}")
+    else:
+        print(f"Found {len(headers)} header file{'s' if len(headers) != 1 else ''}:")
+        for header in headers[:5]:  # Show first 5
+            print(f"  - {header.relative_to(include_dir)}")
+        if len(headers) > 5:
+            print(f"  ... and {len(headers) - 5} more")
+    print()
+
+    # Copy libraries
+    native_dir = crate_dir / 'native' / 'current'
+    native_dir.mkdir(parents=True, exist_ok=True)
+
+    for lib_name, lib_file in libraries:
+        import shutil
+        shutil.copy2(lib_file, native_dir / lib_file.name)
+
+    # Copy headers
+    if headers:
+        crate_include_dir = crate_dir / 'include'
+        crate_include_dir.mkdir(parents=True, exist_ok=True)
+        import shutil
+        shutil.copytree(include_dir, crate_include_dir, dirs_exist_ok=True)
+
+    # Generate Cargo.toml
+    cargo_toml_content = f'''[package]
+name = "{crate_name}"
+version = "{pkg_version}"
+edition = "2021"
+links = "{pkg_name}"
+
+# Include the binaries and headers in the published crate
+include = [
+    "src/**/*",
+    "native/**/*",
+    "include/**/*",
+    "build.rs",
+    "Cargo.toml",
+]
+
+[lib]
+name = "{crate_name.replace('-', '_')}"
+path = "src/lib.rs"
+
+# Optional: Add description, license, etc. from conanfile.py if available
+# description = "Rust bindings for {pkg_name}"
+# license = "MIT"
+# repository = "https://github.com/..."
+'''
+
+    with open(crate_dir / 'Cargo.toml', 'w') as f:
+        f.write(cargo_toml_content)
+
+    # Generate build.rs
+    lib_links = '\n    '.join([f'println!("cargo:rustc-link-lib=static={lib_name}");' for lib_name, _ in libraries])
+
+    build_rs_content = f'''fn main() {{
+    // Tell cargo where to find the pre-compiled libraries
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+    let lib_path = std::path::Path::new(&manifest_dir).join("native/current");
+
+    println!("cargo:rustc-link-search=native={{}}", lib_path.display());
+
+    // Link the libraries
+    {lib_links}
+
+    // Re-run if libraries change
+    println!("cargo:rerun-if-changed=native/");
+}}
+'''
+
+    with open(crate_dir / 'build.rs', 'w') as f:
+        f.write(build_rs_content)
+
+    # Generate src/lib.rs
+    src_dir = crate_dir / 'src'
+    src_dir.mkdir(parents=True, exist_ok=True)
+
+    lib_rs_content = f'''//! Rust FFI bindings for {pkg_name}
+//!
+//! This crate provides pre-compiled binaries for {pkg_name}.
+//! The binaries are linked statically.
+
+#![allow(non_upper_case_globals)]
+#![allow(non_camel_case_types)]
+#![allow(non_snake_case)]
+
+// TODO: Add your FFI declarations here
+// You can use bindgen to auto-generate bindings from the C headers in include/
+//
+// Example:
+// extern "C" {{
+//     pub fn my_function() -> i32;
+// }}
+
+#[cfg(test)]
+mod tests {{
+    use super::*;
+
+    #[test]
+    fn test_link() {{
+        // Add a test that uses your FFI functions
+    }}
+}}
+'''
+
+    with open(src_dir / 'lib.rs', 'w') as f:
+        f.write(lib_rs_content)
+
+    # Generate README
+    readme_content = f'''# {crate_name}
+
+Rust FFI bindings for {pkg_name} {pkg_version}.
+
+This crate contains pre-compiled binaries from the Conan package.
+
+## Libraries included:
+
+{chr(10).join([f"- {lib_name}" for lib_name, _ in libraries])}
+
+## Usage
+
+Add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+{crate_name} = "{pkg_version}"
+```
+
+Then use it in your code:
+
+```rust
+extern crate {crate_name.replace('-', '_')};
+
+// Your code here
+```
+
+## Building
+
+This crate includes pre-compiled static libraries and does not require compilation
+of the C/C++ source code. The libraries are linked during the Rust build process.
+
+## Source
+
+Generated from Conan package: {package_ref}
+'''
+
+    with open(crate_dir / 'README.md', 'w') as f:
+        f.write(readme_content)
+
+    print(f"✓ Rust crate generated successfully!")
+    print(f"\nCrate structure:")
+    print(f"  {crate_dir}/")
+    print(f"  ├── Cargo.toml")
+    print(f"  ├── build.rs")
+    print(f"  ├── README.md")
+    print(f"  ├── src/")
+    print(f"  │   └── lib.rs")
+    print(f"  ├── native/")
+    print(f"  │   └── current/       ({len(libraries)} librar{'y' if len(libraries) == 1 else 'ies'})")
+    if headers:
+        print(f"  └── include/           ({len(headers)} header file{'s' if len(headers) != 1 else ''})")
+
+    # Package as a .crate file (tar.gz)
+    print(f"\nPackaging as .crate archive...")
+    import tarfile
+    crate_archive_name = f"{crate_name}-{pkg_version}.crate"
+    crate_archive_path = Path(output_dir) / crate_archive_name
+
+    with tarfile.open(crate_archive_path, "w:gz") as tar:
+        tar.add(crate_dir, arcname=crate_name)
+
+    print(f"✓ Created: {crate_archive_path}")
+
+    print(f"\nNext steps:")
+    print(f"  1. cd {crate_dir}")
+    print(f"  2. Edit src/lib.rs to add FFI declarations")
+    print(f"  3. Run: cargo build")
+    print(f"  4. Run: cargo test")
+    print(f"  5. Optional: cargo publish (if you want to publish to crates.io)")
+
+    # Return path to the .crate archive for upload
+    return (0, str(crate_archive_path))
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='ConanCrates CLI - Upload and download Conan packages to/from ConanCrates registry'
@@ -1066,6 +1364,11 @@ def main():
         action='store_true',
         help='Also upload all dependencies (will check server and ask for confirmation)'
     )
+    upload_parser.add_argument(
+        '--no-rust',
+        action='store_true',
+        help='Skip Rust crate generation (by default, a Rust crate is generated)'
+    )
 
     # Download command
     download_parser = subparsers.add_parser('download', help='Download a package and its dependencies')
@@ -1087,12 +1390,30 @@ def main():
         help='Keep the downloaded ZIP file after extraction'
     )
 
+    # Generate Rust crate command
+    rust_parser = subparsers.add_parser('generate-rust-crate', help='Generate a Rust crate from a Conan package')
+    rust_parser.add_argument(
+        'package_ref',
+        help='Package reference (e.g., mylib/1.0.0)'
+    )
+    rust_parser.add_argument(
+        '-pr', '--profile',
+        required=True,
+        help='Conan profile to use (required)'
+    )
+    rust_parser.add_argument(
+        '-o', '--output',
+        help='Output directory (default: ./rust_crates)'
+    )
+
     args = parser.parse_args()
 
     if args.command == 'upload':
         return cmd_upload(args)
     elif args.command == 'download':
         return cmd_download(args)
+    elif args.command == 'generate-rust-crate':
+        return cmd_generate_rust_crate(args)
     else:
         parser.print_help()
         return 1
