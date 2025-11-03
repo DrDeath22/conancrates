@@ -164,50 +164,63 @@ def upload_package(request):
         recipe_file = request.FILES['recipe']
         binary_file = request.FILES['binary']
 
-        # Read and parse recipe
+        # Read recipe content
         recipe_content = recipe_file.read().decode('utf-8')
-        metadata = parse_conanfile(recipe_content)
 
-        if not metadata['name'] or not metadata['version']:
+        # Get package name and version from POST data (sent by CLI tool)
+        package_name = request.POST.get('package_name')
+        version = request.POST.get('version')
+
+        if not package_name or not version:
             return JsonResponse({
                 'status': 'error',
-                'message': 'Could not extract package name and version from conanfile.py'
+                'message': 'Missing required fields: package_name and version must be provided in POST data'
             }, status=400)
+
+        # Parse conanfile for description and license (still useful)
+        metadata = parse_conanfile(recipe_content)
+        description = metadata.get('description', '')
+        license_info = metadata.get('license', 'Unknown')
 
         # Extract settings from binary
         settings = extract_conaninfo(binary_file)
 
         # Get or create package
         package, created = Package.objects.get_or_create(
-            name=metadata['name'],
+            name=package_name,
             defaults={
-                'description': metadata['description'],
-                'license': metadata['license']
+                'description': description,
+                'license': license_info
             }
         )
 
         # Update package if it already exists
-        if not created and metadata['description']:
-            package.description = metadata['description']
-            package.license = metadata['license']
+        if not created and description:
+            package.description = description
+            package.license = license_info
             package.save()
 
+        # Get conan_version from client if provided
+        conan_version = request.POST.get('conan_version', 'unknown')
+
         # Get or create package version
-        version, created = PackageVersion.objects.get_or_create(
+        package_version, created = PackageVersion.objects.get_or_create(
             package=package,
-            version=metadata['version'],
+            version=version,
             defaults={
                 'recipe_content': recipe_content,
-                'description': metadata['description'],
+                'description': description,
+                'conan_version': conan_version,
                 'uploaded_by': request.user if request.user.is_authenticated else None
             }
         )
 
         # Update recipe content if version already exists
         if not created:
-            version.recipe_content = recipe_content
-            version.description = metadata['description']
-            version.save()
+            package_version.recipe_content = recipe_content
+            package_version.description = description
+            package_version.conan_version = conan_version
+            package_version.save()
 
         # Get package_id from client if provided, otherwise generate from settings
         package_id = request.POST.get('package_id')
@@ -235,7 +248,7 @@ def upload_package(request):
 
         # Get or create binary package
         binary, created = BinaryPackage.objects.get_or_create(
-            package_version=version,
+            package_version=package_version,
             package_id=package_id,
             defaults={
                 'os': settings['os'],
@@ -252,7 +265,7 @@ def upload_package(request):
         # Save binary file to MinIO
         binary_file.seek(0)
         binary.binary_file.save(
-            f"{metadata['name']}-{metadata['version']}-{package_id}.tar.gz",
+            f"{package_name}-{version}-{package_id}.tar.gz",
             binary_file,
             save=False
         )
@@ -261,9 +274,9 @@ def upload_package(request):
         binary.dependency_graph = dependency_graph  # Update graph even if binary exists
         binary.save()
 
-        # Create dependencies
+        # Create dependencies from metadata (if parsed from requires field)
         from packages.models import Dependency
-        for dep_str in metadata['dependencies']:
+        for dep_str in metadata.get('dependencies', []):
             # Parse dependency string (e.g., "boost/1.81.0")
             if '/' in dep_str:
                 dep_name, dep_version = dep_str.split('/', 1)
@@ -277,16 +290,16 @@ def upload_package(request):
                 )
 
                 Dependency.objects.get_or_create(
-                    package_version=version,
+                    package_version=package_version,
                     depends_on=dep_version_obj
                 )
 
         return JsonResponse({
             'status': 'success',
-            'message': f'Package {metadata["name"]}/{metadata["version"]} uploaded successfully',
+            'message': f'Package {package_name}/{version} uploaded successfully',
             'package': {
-                'name': metadata['name'],
-                'version': metadata['version'],
+                'name': package_name,
+                'version': version,
                 'package_id': package_id,
                 'sha256': sha256,
                 'size': binary_file.size,

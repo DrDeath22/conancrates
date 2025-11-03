@@ -56,6 +56,9 @@
         {% if selected_version.recipe_revision %}
         <p><strong>Recipe Revision:</strong> <code style="background: white; padding: 2px 6px; border-radius: 3px;">{{ selected_version.recipe_revision }}</code></p>
         {% endif %}
+        {% if selected_version.conan_version %}
+        <p><strong>Conan Version:</strong> <code style="background: white; padding: 2px 6px; border-radius: 3px;">{{ selected_version.conan_version }}</code></p>
+        {% endif %}
         <p><strong>Uploaded:</strong> {{ selected_version.created_at|date:"F d, Y" }}</p>
         {% if selected_version.uploaded_by %}
         <p><strong>By:</strong> {{ selected_version.uploaded_by.username }}</p>
@@ -126,17 +129,43 @@
                 <td>{{ item.binary.file_size|filesizeformat }}</td>
                 <td>{{ item.binary.download_count }}</td>
                 <td>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                        <a href="{% url 'packages:download_binary' package.name selected_version.version item.binary.package_id %}"
-                           style="color: #1976d2; text-decoration: none; font-weight: bold;">
-                           Binary
-                        </a>
-                        <span style="color: #ddd;">|</span>
-                        <a href="{% url 'packages:download_bundle' package.name selected_version.version %}?os={{ item.binary.os }}&arch={{ item.binary.arch }}&compiler={{ item.binary.compiler }}&compiler_version={{ item.binary.compiler_version }}&build_type={{ item.binary.build_type }}"
-                           style="color: #2e7d32; text-decoration: none; font-weight: bold;"
-                           title="Download with dependencies">
-                           Bundle
-                        </a>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <!-- For Conan users: Use CLI -->
+                        <details style="border-left: 3px solid #1976d2; padding: 0.5rem; background: #e3f2fd; border-radius: 4px;">
+                            <summary style="cursor: pointer; font-weight: bold; color: #1976d2; font-size: 0.9rem;">
+                                🔧 Conan CLI
+                            </summary>
+                            <div style="margin-top: 0.5rem;">
+                                <div style="font-size: 0.85rem; color: #333; margin-bottom: 0.25rem;">Profile settings:</div>
+                                <pre style="background: #263238; color: #aed581; padding: 0.4rem; border-radius: 3px; margin: 0 0 0.5rem 0; font-size: 0.7rem; overflow-x: auto;"><code>[settings]
+os={{ item.binary.os }}
+arch={{ item.binary.arch }}
+compiler={{ item.binary.compiler }}
+compiler.version={{ item.binary.compiler_version }}
+build_type={{ item.binary.build_type }}</code></pre>
+                                <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Save as: <code style="background: white; padding: 1px 3px; border-radius: 2px; font-size: 0.7rem;">~/.conan2/profiles/{{ item.binary.os|lower }}_{{ item.binary.compiler }}{{ item.binary.compiler_version }}_{{ item.binary.build_type|lower }}</code></div>
+                                <div style="font-size: 0.85rem; color: #333; margin-bottom: 0.25rem;">Download:</div>
+                                <pre style="background: #263238; color: #aed581; padding: 0.4rem; border-radius: 3px; margin: 0; font-size: 0.7rem; overflow-x: auto;"><code>python conancrates.py download {{ package.name }}/{{ selected_version.version }} -pr {{ item.binary.os|lower }}_{{ item.binary.compiler }}{{ item.binary.compiler_version }}_{{ item.binary.build_type|lower }}</code></pre>
+                            </div>
+                        </details>
+
+                        <!-- Extracted format (for non-Conan users) -->
+                        <div style="border-left: 3px solid #2e7d32; padding: 0.5rem; background: #e8f5e9; border-radius: 4px;">
+                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem; font-weight: bold;">Direct Downloads:</div>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <a href="{% url 'packages:download_extracted_binary' package.name selected_version.version item.binary.package_id %}"
+                                   style="color: #2e7d32; text-decoration: none; font-weight: bold; font-size: 0.9rem;"
+                                   title="Download extracted (include/, lib/, bin/, cmake/)">
+                                   📂 Binary
+                                </a>
+                                <span style="color: #ddd;">|</span>
+                                <a href="{% url 'packages:download_extracted_bundle' package.name selected_version.version %}?os={{ item.binary.os }}&arch={{ item.binary.arch }}&compiler={{ item.binary.compiler }}&compiler_version={{ item.binary.compiler_version }}&build_type={{ item.binary.build_type }}"
+                                   style="color: #2e7d32; text-decoration: none; font-weight: bold; font-size: 0.9rem;"
+                                   title="Download extracted bundle with interlaced folders (include/, lib/, bin/, cmake/)">
+                                   🗂️ Bundle
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </td>
             </tr>

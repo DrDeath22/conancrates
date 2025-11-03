@@ -1,12 +1,24 @@
 # ConanCrates
 
-A private C++ package registry for Conan packages, similar to Kellnr for Rust or crates.io.
+A private C++ package registry for Conan packages, similar to crates.io for Rust or npm for JavaScript.
+
+## 🚀 Quick Start
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for complete setup instructions.
+
+```bash
+git clone <repository-url> && cd ConanCrates
+python -m venv venv && source venv/bin/activate  # Windows: .\venv\Scripts\activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver
+```
 
 **Key Documentation:**
-- [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) - How to download packages without Conan client
-- [CONAN_INTEGRATION.md](CONAN_INTEGRATION.md) - Technical details on Conan-powered resolution
-- [STORAGE_AND_UPLOAD.md](STORAGE_AND_UPLOAD.md) - How to enable real file storage and uploads
-- [MINIO_SETUP.md](MINIO_SETUP.md) - MinIO setup guide (configured and ready!)
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide with MinIO setup
+- **[CLI_GUIDE.md](CLI_GUIDE.md)** - CLI tool for uploading and downloading packages
+- [DEPENDENCY_RESOLUTION_DESIGN.md](.claude/DEPENDENCY_RESOLUTION_DESIGN.md) - Architecture for dependency resolution
+- [RESUME_SESSION.md](RESUME_SESSION.md) - Latest development status and TODO list
 
 ## Project Structure
 
@@ -54,67 +66,58 @@ ConanCrates/
 └── create_sample_data.py  # Script to populate sample data
 ```
 
-## Features
+## ✨ Features
 
-- **Package Management**: Browse, search, and manage Conan packages
-- **Version Tracking**: Multiple versions per package with full metadata
-- **Binary Packages**: Support for pre-compiled binaries across different platforms/configurations
-- **Dependencies**: Track package dependencies and requirements
-- **Topics/Tags**: Categorize packages by topic
-- **Search & Filtering**: Find packages by name, description, license, or topic
-- **Admin Interface**: Full-featured Django admin for package management
-- **Clean UI**: User-friendly web interface for browsing packages
-- **Direct Downloads**: Download packages without Conan client (manifests, bundles, scripts)
-- **Conan-Powered Resolution**: Uses Conan's actual dependency resolution for accurate bundles
-- **Comprehensive Tests**: 66 automated tests covering models, views, admin, and download functionality
+- **📦 Package Management**: Browse, search, and manage Conan packages
+- **🔢 Version Tracking**: Multiple versions per package with full metadata
+- **💾 Binary Packages**: Pre-compiled binaries for different platforms (OS, arch, compiler)
+- **🔗 Smart Dependencies**: Per-binary dependency tracking with stored dependency graphs
+- **🏷️ Topics/Tags**: Categorize packages by topic for easy discovery
+- **🔍 Search & Filtering**: Find packages by name, description, license, or topic
+- **👨‍💼 Admin Interface**: Full-featured Django admin for package management
+- **🎨 Clean UI**: User-friendly web interface for browsing packages
+- **⬇️ Direct Downloads**: Download binaries and bundles without Conan client
+- **📊 Dependency Resolution**: Stores pre-computed dependency graphs (lock file pattern)
+- **☁️ MinIO Storage**: S3-compatible object storage for package binaries
+- **🔧 CLI Tool**: `conancrates.py` for uploading and downloading packages
 
-## Getting Started
+## 📋 Getting Started
 
-### 1. Install Dependencies
+For complete deployment instructions including MinIO setup, see **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+
+### Quick Development Setup
 
 ```bash
-# Create virtual environment
+# 1. Clone repository
+git clone <repository-url>
+cd ConanCrates
+
+# 2. Setup Python environment
 python -m venv venv
-
-# Activate virtual environment
-# Windows:
-.\venv\Scripts\activate
-# Linux/Mac:
-source venv/bin/activate
-
-# Install requirements
+source venv/bin/activate  # Windows: .\venv\Scripts\activate
 pip install -r requirements.txt
-```
 
-### 2. Run Migrations
+# 3. Setup MinIO (in separate terminal - see DEPLOYMENT.md)
+docker run -p 9000:9000 -p 9001:9001 \
+  -e MINIO_ROOT_USER=admin -e MINIO_ROOT_PASSWORD=password123 \
+  quay.io/minio/minio server /data --console-address ":9001"
 
-```bash
+# Create bucket "conancrates" at http://localhost:9001
+
+# 4. Initialize database
 python manage.py migrate
-```
+python manage.py createsuperuser
 
-### 3. Create Sample Data (Optional)
-
-```bash
-python create_sample_data.py
-```
-
-This will create:
-- Admin user (username: `admin`, password: `admin`)
-- 6 sample packages (zlib, boost, openssl, fmt, gtest, nlohmann_json)
-- Multiple versions and binaries for each package
-- Sample dependencies and topics
-
-### 4. Run Development Server
-
-```bash
+# 5. Start server
 python manage.py runserver
 ```
 
-Visit:
-- **Homepage**: http://localhost:8000/
-- **Admin Panel**: http://localhost:8000/admin/ (login: admin/admin)
-- **Packages**: http://localhost:8000/packages/
-- **Topics**: http://localhost:8000/topics/
+### Access Points
+
+- **Homepage**: http://127.0.0.1:8000/
+- **Admin Panel**: http://127.0.0.1:8000/admin/
+- **Package List**: http://127.0.0.1:8000/packages/
+- **MinIO Console**: http://127.0.0.1:9001/ (admin/password123)
 
 ## Architecture Decisions
 
@@ -131,96 +134,122 @@ The project is organized into small, focused modules instead of monolithic files
 - Reduces merge conflicts in team environments
 - Follows Django best practices for larger projects
 
-## Technology Stack
+## 🛠️ Technology Stack
 
-- **Backend**: Django 5.2 (Python)
-- **Database**: SQLite (development) / PostgreSQL (production ready)
-- **Frontend**: Django Templates + CSS (no heavy JavaScript framework)
-- **Admin**: Django Admin (customized)
-- **API**: Django REST Framework (ready for future API endpoints)
+- **Backend**: Django 5.2.7 (Python 3.13)
+- **Database**: SQLite (development) / PostgreSQL (production)
+- **Storage**: MinIO (S3-compatible object storage)
+- **Frontend**: Django Templates + CSS
+- **Package Manager**: Conan 2.x (for dependency resolution)
+- **API**: REST endpoints for package uploads/downloads
 
-## Next Steps
+## 🎯 How It Works
 
-- [ ] Add REST API for Conan client integration
-- [ ] Implement actual file upload/download
-- [ ] Add user authentication and permissions
-- [ ] Implement package upload via web interface
-- [ ] Add statistics and analytics
-- [x] Create comprehensive test suite (66 tests covering models, views, admin, downloads)
-- [x] Direct download support (manifests, bundles, individual binaries)
-- [x] **Conan-powered dependency resolution** - Bundle downloads use Conan's actual resolution logic
-- [x] Strict error handling - Returns HTTP 503 if Conan unavailable (no wrong packages)
-- [ ] Add Docker support
-- [ ] Implement S3/MinIO storage backend
+### Dependency Resolution Architecture
 
-## Download Without Conan Client
+ConanCrates uses a **"lock file" pattern** for dependency resolution:
 
-ConanCrates supports downloading packages without the Conan client. See [DOWNLOAD_GUIDE.md](DOWNLOAD_GUIDE.md) for details.
+1. **Client uploads package** with pre-computed dependency graph
+   - Client runs `conan graph info` locally (has all deps resolved)
+   - Sends graph JSON to server along with binaries
 
-### Dependency Resolution
+2. **Server stores graph** in `BinaryPackage.dependency_graph` field
+   - No Conan needed on server for resolution
+   - Each binary has its own graph (deps vary by platform)
 
-**NEW:** Bundle downloads now use Conan's actual dependency resolution logic for 100% accurate results!
+3. **Bundle downloads** use stored graphs
+   - Look up exact binaries by package_id from graph
+   - Simple database queries, no dependency resolution
+   - 100% accurate (came from real Conan resolution)
 
-- **Conan installation required** on server: `pip install conan>=2.0`
-- Bundle downloads use Conan's resolver (100% accurate)
-- **Fails with HTTP 503** if Conan not installed (wrong packages are worse than no packages)
-- See [CONAN_INTEGRATION.md](CONAN_INTEGRATION.md) for technical details
+**Benefits:**
+- ✅ No Conan needed on server
+- ✅ No code execution on server (safe)
+- ✅ Fast (just database lookups)
+- ✅ Accurate (from real Conan resolution)
 
-**Quick examples:**
+See [DEPENDENCY_RESOLUTION_DESIGN.md](.claude/DEPENDENCY_RESOLUTION_DESIGN.md) for details.
+
+## 🚀 Using ConanCrates
+
+### Upload Packages
 
 ```bash
-# Download package manifest (JSON with all metadata)
-curl http://localhost:8000/packages/zlib/1.2.13/manifest/ > manifest.json
+# Create package with Conan
+conan create . --version=1.0.0
 
-# Bundle preview with Conan resolution (includes compiler_version)
-curl "http://localhost:8000/packages/boost/1.81.0/bundle/preview/?os=Linux&arch=x86_64&compiler=gcc&compiler_version=11&build_type=Release"
+# Upload to ConanCrates
+python conancrates/conancrates.py upload package_name/1.0.0
 
-# Download ZIP bundle (uses Conan resolution)
-curl "http://localhost:8000/packages/boost/1.81.0/bundle/?os=Linux&arch=x86_64&compiler=gcc&compiler_version=11&build_type=Release" -o boost-bundle.zip
-
-# Get automated download script
-curl -O http://localhost:8000/download-script/
+# Upload with all dependencies
+python conancrates/conancrates.py upload package_name/1.0.0 --with-dependencies
 ```
 
-Or use the web UI - each package page has download buttons!
+### Download Packages
 
-## Development
+```bash
+# Download package + dependencies using your Conan profile
+python conancrates/conancrates.py download package_name/1.0.0 -pr default
+
+# Download to specific directory
+python conancrates/conancrates.py download package_name/1.0.0 -pr release -o ./my_packages
+```
+
+Downloads to `./conan_packages/package_name-version/` with all dependencies matching your profile settings.
+
+**See [CLI_GUIDE.md](CLI_GUIDE.md) for complete CLI documentation.**
+
+### Direct Binary Downloads
+
+Each package page shows available binaries with two download options:
+- **Binary**: Download just the binary package
+- **Bundle**: Download binary + all dependencies
+
+Dependencies are listed per binary (they can vary by platform/options).
+
+## 🧪 Development
 
 ### Running Tests
 
-The project includes a comprehensive test suite with 66 tests:
-
 ```bash
-# Run all tests
 python manage.py test
-
-# Run specific test module
-python manage.py test packages.tests.test_models
-python manage.py test packages.tests.test_views
-python manage.py test packages.tests.test_admin
-python manage.py test packages.tests.test_download_views
-
-# Run with verbose output
-python manage.py test --verbosity=2
 ```
 
-**Test Coverage:**
-- **Model Tests** (30 tests): Package, PackageVersion, BinaryPackage, Dependency, Topic
-- **View Tests** (15 tests): Homepage, package list/detail, topics, search, filtering, pagination
-- **Admin Tests** (6 tests): Admin interface functionality, authentication, CRUD operations
-- **Download Tests** (15 tests): Binary downloads, manifests, bundles, Conan integration, error handling
-
 ### Creating a Superuser
+
 ```bash
 python manage.py createsuperuser
 ```
 
 ### Making Model Changes
+
 ```bash
 python manage.py makemigrations
 python manage.py migrate
 ```
 
-## License
+## 📚 Documentation
 
-This is a prototype project for evaluation.
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide
+- **[CLI_GUIDE.md](CLI_GUIDE.md)** - CLI tool usage (upload/download)
+- **[WEB_UI_GUIDE.md](WEB_UI_GUIDE.md)** - Web UI browsing and downloads
+- **[UPLOAD_GUIDE.md](UPLOAD_GUIDE.md)** - Manual upload via Django admin
+- **[RESUME_SESSION.md](RESUME_SESSION.md)** - Current development status
+- **[DEPENDENCY_RESOLUTION_DESIGN.md](.claude/DEPENDENCY_RESOLUTION_DESIGN.md)** - Technical architecture
+
+## 🎯 Current Status
+
+**Latest Features:**
+- ✅ Per-binary dependency tracking and display
+- ✅ Individual Binary and Bundle download links per binary
+- ✅ Stored dependency graphs (lock file pattern)
+- ✅ MinIO integration for binary storage
+- ✅ CLI tool for upload/download
+- ✅ Web UI for browsing packages
+
+**Next Steps:**
+- See [RESUME_SESSION.md](RESUME_SESSION.md) for TODO list
+
+## 📄 License
+
+MIT License - See LICENSE file for details.

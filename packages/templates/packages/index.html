@@ -62,21 +62,36 @@
 </div>
 {% endif %}
 
-<div class="card" style="background: #f8f9fa;">
-    <h2>Getting Started</h2>
-    <p style="margin-bottom: 1rem;">To use this Conan registry in your projects:</p>
-    <ol style="margin-left: 2rem; color: #555;">
-        <li style="margin-bottom: 0.5rem;">Add this registry as a remote: <code style="background: white; padding: 4px 8px; border-radius: 4px;">conan remote add conancrates http://localhost:8000</code></li>
-        <li style="margin-bottom: 0.5rem;">Search for packages: <code style="background: white; padding: 4px 8px; border-radius: 4px;">conan search "*" -r=conancrates</code></li>
-        <li>Install packages in your conanfile.txt or conanfile.py</li>
-    </ol>
+<div class="card" style="background: #fff3e0;">
+    <h2>📦 Using Packages with Conan</h2>
+    <p style="margin-bottom: 1rem;">For Conan development workflows, use the ConanCrates CLI to download and use packages:</p>
 
-    <h3 style="margin-top: 2rem;">Without Conan Client</h3>
-    <p style="margin-bottom: 1rem;">You can also download packages directly without installing Conan:</p>
+    <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem; margin-top: 1rem;">1. Download from ConanCrates</h3>
+    <pre style="background: #263238; color: #aed581; padding: 1rem; border-radius: 4px; overflow-x: auto; margin: 0.5rem 0;"><code>python conancrates.py download package/version</code></pre>
+    <p style="font-size: 0.9rem; color: #666; margin-bottom: 1rem;">Downloads recipe (conanfile.py) + binary packages to <code style="background: white; padding: 2px 6px; border-radius: 3px;">./conan_packages/package-version/</code></p>
+
+    <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem; margin-top: 1.5rem;">2. Add to Your Project</h3>
+    <p style="margin-bottom: 0.5rem;">In your <strong>conanfile.txt</strong>:</p>
+    <pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto; margin: 0.5rem 0;"><code>[requires]
+package/version</code></pre>
+
+    <p style="margin: 1rem 0 0.5rem 0;">Or in your <strong>conanfile.py</strong>:</p>
+    <pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto; margin: 0.5rem 0;"><code>class MyProject(ConanFile):
+    requires = "package/version"</code></pre>
+
+    <h3 style="font-size: 1.2rem; margin-bottom: 0.5rem; margin-top: 1.5rem;">3. Upload Packages</h3>
+    <pre style="background: #263238; color: #aed581; padding: 1rem; border-radius: 4px; overflow-x: auto; margin: 0.5rem 0;"><code>python conancrates.py upload package/version</code></pre>
+</div>
+
+<div class="card" style="background: #e3f2fd;">
+    <h2>🔗 Direct Downloads</h2>
+    <p style="margin-bottom: 1rem;">You can also download binaries directly from the web interface:</p>
     <ul style="margin-left: 2rem; color: #555;">
-        <li style="margin-bottom: 0.5rem;">Browse packages and click "Download" buttons on package pages</li>
-        <li style="margin-bottom: 0.5rem;">Download the manifest JSON with all package metadata and URLs</li>
-        <li style="margin-bottom: 0.5rem;">Use our <a href="{% url 'packages:download_script' %}" style="color: #1976d2;">download script</a> for automated downloads</li>
+        <li style="margin-bottom: 0.5rem;">Browse to any package page</li>
+        <li style="margin-bottom: 0.5rem;">View available binaries for different platforms (OS, architecture, compiler)</li>
+        <li style="margin-bottom: 0.5rem;">Click <strong>Binary</strong> to download just the binary package</li>
+        <li style="margin-bottom: 0.5rem;">Click <strong>Bundle</strong> to download the package with all dependencies</li>
+        <li style="margin-bottom: 0.5rem;">View and download the recipe (conanfile.py) source code</li>
     </ul>
 </div>
 {% endblock %}

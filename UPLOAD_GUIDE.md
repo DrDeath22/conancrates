@@ -1,6 +1,8 @@
 # How to Upload Binary Files
 
-This guide shows you how to upload Conan binary packages to ConanCrates using the Django admin interface.
+This guide shows you how to upload Conan binary packages to ConanCrates using the **Django admin interface** (manual upload).
+
+**For CLI tool usage, see [CLI_GUIDE.md](CLI_GUIDE.md)** - the recommended method for uploading from your Conan cache.
 
 ## Quick Start (5 minutes)
 
@@ -181,17 +183,15 @@ python manage.py createsuperuser
 
 Or use the sample data script which creates admin/admin user.
 
-## Advanced: Uploading via API (Future)
+## Advanced: Uploading via CLI Tool
 
-Currently, uploads are only available through Django admin.
+For automated uploads from your Conan cache, use the CLI tool:
 
-To implement API uploads, you would:
-1. Create an upload endpoint in `packages/views/upload_views.py`
-2. Add authentication (API tokens)
-3. Accept multipart form data
-4. Validate and save the file
+```bash
+python conancrates/conancrates.py upload package_name/1.0.0
+```
 
-See [STORAGE_AND_UPLOAD.md](STORAGE_AND_UPLOAD.md) Part 3 for implementation details.
+See [CLI_GUIDE.md](CLI_GUIDE.md) for complete documentation.
 
 ## File Upload Flow Diagram
 

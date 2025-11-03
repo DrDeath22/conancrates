@@ -13,12 +13,23 @@ urlpatterns = [
     path('topics/<slug:slug>/', views.topic_detail, name='topic_detail'),
 
     # Download endpoints
+    # Conan format downloads (for Conan users)
     path('packages/<str:package_name>/<str:version>/binaries/<str:binary_id>/download/',
          views.download_binary, name='download_binary'),
-    path('packages/<str:package_name>/<str:version>/bundle/preview/',
-         views.bundle_preview, name='bundle_preview'),
+    path('packages/<str:package_name>/<str:version>/binaries/',
+         views.download_views.list_available_binaries, name='list_binaries'),
     path('packages/<str:package_name>/<str:version>/bundle/',
          views.download_bundle, name='download_bundle'),
+    path('packages/<str:package_name>/<str:version>/bundle/preview/',
+         views.bundle_preview, name='bundle_preview'),
+
+    # Extracted format downloads (for non-Conan users)
+    path('packages/<str:package_name>/<str:version>/binaries/<str:binary_id>/download/extracted/',
+         views.download_views.download_extracted_binary, name='download_extracted_binary'),
+    path('packages/<str:package_name>/<str:version>/bundle/extracted/',
+         views.download_views.download_extracted_bundle, name='download_extracted_bundle'),
+
+    # Other downloads
     path('packages/<str:package_name>/<str:version>/manifest/',
          views.download_manifest, name='download_manifest'),
     path('packages/<str:package_name>/<str:version>/recipe/download/',

@@ -14,6 +14,7 @@ class PackageVersion(models.Model):
     recipe_revision = models.CharField(max_length=64, blank=True, help_text="Git/hash of recipe")
     recipe_file = models.FileField(upload_to='recipes/', blank=True, null=True)
     recipe_content = models.TextField(blank=True, help_text="Content of conanfile.py")
+    conan_version = models.CharField(max_length=50, blank=True, help_text="Version of Conan used to create this package")
 
     # Settings that affect this version
     description = models.TextField(blank=True)
