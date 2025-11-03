@@ -160,21 +160,6 @@ build_type={{ item.binary.build_type }}</code></pre>
                                 </a>
                             </div>
 
-                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.5rem; font-weight: bold;">Conan Integration:</div>
-                            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-                                <a href="{% url 'packages:download_extracted_binary' package.name selected_version.version item.binary.package_id %}"
-                                   style="color: #2e7d32; text-decoration: none; font-weight: bold; font-size: 0.9rem;"
-                                   title="Download extracted (include/, lib/, bin/, cmake/)">
-                                   📂 Binary
-                                </a>
-                                <span style="color: #ddd;">|</span>
-                                <a href="{% url 'packages:download_extracted_bundle' package.name selected_version.version %}?os={{ item.binary.os }}&arch={{ item.binary.arch }}&compiler={{ item.binary.compiler }}&compiler_version={{ item.binary.compiler_version }}&build_type={{ item.binary.build_type }}"
-                                   style="color: #2e7d32; text-decoration: none; font-weight: bold; font-size: 0.9rem;"
-                                   title="Bundle includes:{% for pkg in item.bundle_packages %}&#10;  - {{ pkg }}{% endfor %}">
-                                   🗂️ Bundle
-                                </a>
-                            </div>
-
                             <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.5rem; font-weight: bold;">CMake Integration:</div>
                             <div style="display: flex; gap: 0.5rem;">
                                 <a href="{% url 'packages:download_extracted_binary' package.name selected_version.version item.binary.package_id %}"
