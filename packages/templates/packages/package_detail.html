@@ -151,28 +151,34 @@ build_type={{ item.binary.build_type }}</code></pre>
 
                         <!-- Direct Downloads by Ecosystem -->
                         <div style="border-left: 3px solid #2e7d32; padding: 0.5rem; background: #e8f5e9; border-radius: 4px;">
-                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.5rem; font-weight: bold;">Rust Integration:</div>
-                            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
-                                <a href="{% url 'packages:download_rust_crate' package.name selected_version.version item.binary.package_id %}"
-                                   style="color: #d84315; text-decoration: none; font-weight: bold; font-size: 0.9rem;"
-                                   title="Download Rust -sys crate (.crate archive)">
-                                   🦀 Crate
-                                </a>
-                            </div>
+                            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-start;">
+                                <!-- Rust -->
+                                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                                    <div style="font-size: 0.7rem; color: #666; font-weight: bold;">Rust:</div>
+                                    <a href="{% url 'packages:download_rust_crate' package.name selected_version.version item.binary.package_id %}"
+                                       style="color: #d84315; text-decoration: none; font-weight: bold; font-size: 0.85rem;"
+                                       title="Download Rust -sys crate (.crate archive)">
+                                       🦀 Crate
+                                    </a>
+                                </div>
 
-                            <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.5rem; font-weight: bold;">CMake Integration:</div>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <a href="{% url 'packages:download_extracted_binary' package.name selected_version.version item.binary.package_id %}"
-                                   style="color: #1565c0; text-decoration: none; font-weight: bold; font-size: 0.9rem;"
-                                   title="Download with CMake configs (include/, lib/, cmake/)">
-                                   ⚙️ Package
-                                </a>
-                                <span style="color: #ddd;">|</span>
-                                <a href="{% url 'packages:download_extracted_bundle' package.name selected_version.version %}?os={{ item.binary.os }}&arch={{ item.binary.arch }}&compiler={{ item.binary.compiler }}&compiler_version={{ item.binary.compiler_version }}&build_type={{ item.binary.build_type }}"
-                                   style="color: #1565c0; text-decoration: none; font-weight: bold; font-size: 0.9rem;"
-                                   title="Bundle with dependencies for CMake">
-                                   🗂️ Bundle
-                                </a>
+                                <!-- CMake -->
+                                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                                    <div style="font-size: 0.7rem; color: #666; font-weight: bold;">CMake:</div>
+                                    <div style="display: flex; gap: 0.5rem;">
+                                        <a href="{% url 'packages:download_extracted_binary' package.name selected_version.version item.binary.package_id %}"
+                                           style="color: #1565c0; text-decoration: none; font-weight: bold; font-size: 0.85rem;"
+                                           title="Download with CMake configs (include/, lib/, cmake/)">
+                                           ⚙️ Pkg
+                                        </a>
+                                        <span style="color: #ddd;">|</span>
+                                        <a href="{% url 'packages:download_extracted_bundle' package.name selected_version.version %}?os={{ item.binary.os }}&arch={{ item.binary.arch }}&compiler={{ item.binary.compiler }}&compiler_version={{ item.binary.compiler_version }}&build_type={{ item.binary.build_type }}"
+                                           style="color: #1565c0; text-decoration: none; font-weight: bold; font-size: 0.85rem;"
+                                           title="Bundle with dependencies for CMake">
+                                           🗂️ Bundle
+                                        </a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
