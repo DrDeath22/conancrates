@@ -839,6 +839,11 @@ def download_extracted_bundle(request, package_name, version):
             except BinaryPackage.DoesNotExist:
                 pass  # Skip missing dependencies
 
+    # Log bundle generation start
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Generating bundle for {package_name}/{version} with {len(binaries_to_extract)} package(s)")
+
     # Create temporary directory for extraction
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpdir_path = Path(tmpdir)
@@ -855,7 +860,8 @@ def download_extracted_bundle(request, package_name, version):
         merged_cmake.mkdir()
 
         # Extract each package and merge into common directories
-        for bin_pkg, pkg_name, pkg_ver in binaries_to_extract:
+        for idx, (bin_pkg, pkg_name, pkg_ver) in enumerate(binaries_to_extract, 1):
+            logger.info(f"  [{idx}/{len(binaries_to_extract)}] Extracting {pkg_name}/{pkg_ver}...")
             if not bin_pkg.binary_file or not bin_pkg.binary_file.name:
                 continue
 

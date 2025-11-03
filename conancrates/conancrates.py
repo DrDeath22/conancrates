@@ -133,33 +133,50 @@ def find_recipe_file(cache_path):
     return None
 
 
-def get_package_binaries(package_ref):
+def get_package_binaries(package_ref, profile):
     """
-    Get list of binary package IDs for a package.
+    Get the binary package ID for a package using a specific profile.
 
     Args:
         package_ref: Package reference like "boost/1.81.0"
+        profile: Conan profile name or path (REQUIRED - no default)
 
     Returns:
-        List of package IDs
+        List containing the package ID that matches the profile settings
+
+    Raises:
+        ValueError: If profile is not provided
     """
-    output = run_conan_command(['conan', 'list', f'{package_ref}:*', '--format=json'])
+    if not profile:
+        raise ValueError("Profile parameter is required for get_package_binaries()")
+
+    # Use graph info to get the specific package ID for this profile
+    cache_path = get_package_cache_path(package_ref)
+    if not cache_path:
+        return []
+
+    cmd = ['conan', 'graph', 'info', cache_path, '--format=json', '-pr', profile]
+    output = run_conan_command(cmd)
     if not output:
         return []
 
     try:
-        data = json.loads(output)
-        # Navigate JSON structure to find package IDs
-        # Structure: {"Local Cache": {"package/version": {"revisions": {"hash": {"packages": {"package_id": {...}}}}}}}
-        for cache_name, cache_data in data.items():
-            for pkg_name, pkg_data in cache_data.items():
-                if 'revisions' in pkg_data:
-                    for rev_hash, rev_data in pkg_data['revisions'].items():
-                        if 'packages' in rev_data:
-                            return list(rev_data['packages'].keys())
+        # Find the JSON part (skip the profile/graph header output)
+        json_start = output.find('{')
+        if json_start != -1:
+            json_str = output[json_start:]
+            data = json.loads(json_str)
+            # Find the package node (not the root "0" node)
+            nodes = data.get('graph', {}).get('nodes', {})
+            for node_id, node in nodes.items():
+                ref = node.get('ref', '')
+                if package_ref in ref:
+                    pkg_id = node.get('package_id')
+                    if pkg_id:
+                        return [pkg_id]
         return []
     except Exception as e:
-        print(f"Warning: Could not parse package list: {e}")
+        print(f"Warning: Could not parse graph info: {e}")
         return []
 
 
@@ -181,7 +198,7 @@ def get_binary_package_path(package_ref, package_id):
     return None
 
 
-def get_dependency_graph(package_ref, package_id, cache_path):
+def get_dependency_graph(package_ref, package_id, cache_path, profile):
     """
     Get the full dependency graph for a package using conan graph info.
 
@@ -189,12 +206,21 @@ def get_dependency_graph(package_ref, package_id, cache_path):
         package_ref: Package reference like "boost/1.81.0"
         package_id: Package ID hash
         cache_path: Path to the recipe in cache
+        profile: Conan profile name or path (REQUIRED - no default)
 
     Returns:
         Dict with graph data, or None if failed
+
+    Raises:
+        ValueError: If profile is not provided
     """
+    if not profile:
+        raise ValueError("Profile parameter is required for get_dependency_graph()")
+
     # Run graph info from the cache directory where conanfile.py is located
-    output = run_conan_command(['conan', 'graph', 'info', cache_path, '--format=json'])
+    cmd = ['conan', 'graph', 'info', cache_path, '--format=json', '-pr', profile]
+
+    output = run_conan_command(cmd)
     if output:
         try:
             # Find the JSON part (skip the profile/graph header output)
@@ -388,18 +414,25 @@ def upload_package(server_url, recipe_path, binary_path, package_ref, package_id
         return False
 
 
-def upload_single_package(server_url, package_ref, package_id=None):
+def upload_single_package(server_url, package_ref, profile, package_id=None):
     """
     Upload a single package to ConanCrates.
 
     Args:
         server_url: ConanCrates server URL
         package_ref: Package reference like "boost/1.81.0"
-        package_id: Specific package ID to upload (optional, uses first if not specified)
+        profile: Conan profile name or path (REQUIRED - no default)
+        package_id: Specific package ID to upload (optional, will be determined from profile if not specified)
 
     Returns:
         0 on success, 1 on failure
+
+    Raises:
+        ValueError: If profile is not provided
     """
+    if not profile:
+        raise ValueError("Profile parameter is required for upload_single_package()")
+
     # Get package cache path (recipe)
     cache_path = get_package_cache_path(package_ref)
     if not cache_path:
@@ -412,10 +445,10 @@ def upload_single_package(server_url, package_ref, package_id=None):
         print(f"  Error: Could not find conanfile.py in {cache_path}")
         return 1
 
-    # Find binary packages
-    package_ids = get_package_binaries(package_ref)
+    # Find binary packages for this profile
+    package_ids = get_package_binaries(package_ref, profile)
     if not package_ids:
-        print(f"  Error: No binary packages found for {package_ref}")
+        print(f"  Error: No binary packages found for {package_ref} with profile {profile}")
         return 1
 
     # Use specified package_id or first one
@@ -428,8 +461,8 @@ def upload_single_package(server_url, package_ref, package_id=None):
         print(f"  Error: Could not find binary package path")
         return 1
 
-    # Get dependency graph
-    dependency_graph = get_dependency_graph(package_ref, package_id, cache_path)
+    # Get dependency graph with profile
+    dependency_graph = get_dependency_graph(package_ref, package_id, cache_path, profile)
 
     # Create tarball
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -447,11 +480,13 @@ def cmd_upload(args):
     """Handle the 'upload' command."""
     package_ref = args.package_ref
     server_url = args.server or "http://localhost:8000"
+    profile = args.profile
     with_deps = args.with_dependencies if hasattr(args, 'with_dependencies') else False
 
     print(f"ConanCrates Upload")
     print(f"{'='*60}")
     print(f"Package: {package_ref}")
+    print(f"Profile: {profile}")
     print(f"Server: {server_url}")
     print(f"Upload dependencies: {with_deps}")
     print(f"{'='*60}")
@@ -466,9 +501,9 @@ def cmd_upload(args):
 
     # Step 2: Find binary packages
     print("\n2. Finding binary packages...")
-    package_ids = get_package_binaries(package_ref)
+    package_ids = get_package_binaries(package_ref, profile=profile)
     if not package_ids:
-        print(f"Error: No binary packages found for {package_ref}")
+        print(f"Error: No binary packages found for {package_ref} with profile {profile}")
         return 1
 
     package_id = package_ids[0]
@@ -476,7 +511,7 @@ def cmd_upload(args):
 
     # Step 3: Get dependency graph
     print("\n3. Analyzing dependencies...")
-    dependency_graph = get_dependency_graph(package_ref, package_id, cache_path)
+    dependency_graph = get_dependency_graph(package_ref, package_id, cache_path, profile=profile)
 
     # packages_to_upload is now a list of (package_ref, package_id) tuples
     packages_to_upload = [(package_ref, package_id)]
@@ -562,13 +597,14 @@ def cmd_upload(args):
 
     uploaded_count = 0
     failed_packages = []
+    total_to_upload = len(missing_packages)
 
-    for pkg_ref, pkg_id in missing_packages:
-        print(f"\n📦 Uploading {pkg_ref} ({pkg_id[:8]}...)...")
-        result = upload_single_package(server_url, pkg_ref, package_id=pkg_id)
+    for idx, (pkg_ref, pkg_id) in enumerate(missing_packages, 1):
+        print(f"\n📦 [{idx}/{total_to_upload}] Uploading {pkg_ref} ({pkg_id[:8]}...)...")
+        result = upload_single_package(server_url, pkg_ref, profile, package_id=pkg_id)
         if result == 0:
             uploaded_count += 1
-            print(f"  ✓ Success!")
+            print(f"  ✓ Success! ({uploaded_count}/{total_to_upload} completed)")
         else:
             failed_packages.append((pkg_ref, pkg_id))
             print(f"  ✗ Failed!")
@@ -1019,6 +1055,11 @@ def main():
     upload_parser.add_argument(
         'package_ref',
         help='Package reference (e.g., boost/1.81.0)'
+    )
+    upload_parser.add_argument(
+        '-pr', '--profile',
+        required=True,
+        help='Conan profile to use (required, e.g., default, or path to profile file)'
     )
     upload_parser.add_argument(
         '--with-dependencies',

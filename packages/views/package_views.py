@@ -99,9 +99,14 @@ def package_detail(request, package_name):
                         'package_id': node.get('package_id', 'unknown')
                     })
 
+            # Build bundle package list (main package + dependencies)
+            bundle_packages = [f"{package.name}/{selected_version.version}"]
+            bundle_packages.extend([f"{dep['name']}/{dep['version']}" for dep in dependencies])
+
             binaries_with_deps.append({
                 'binary': binary,
-                'dependencies': dependencies
+                'dependencies': dependencies,
+                'bundle_packages': bundle_packages
             })
 
     context = {

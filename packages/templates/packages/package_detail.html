@@ -161,7 +161,7 @@ build_type={{ item.binary.build_type }}</code></pre>
                                 <span style="color: #ddd;">|</span>
                                 <a href="{% url 'packages:download_extracted_bundle' package.name selected_version.version %}?os={{ item.binary.os }}&arch={{ item.binary.arch }}&compiler={{ item.binary.compiler }}&compiler_version={{ item.binary.compiler_version }}&build_type={{ item.binary.build_type }}"
                                    style="color: #2e7d32; text-decoration: none; font-weight: bold; font-size: 0.9rem;"
-                                   title="Download extracted bundle with interlaced folders (include/, lib/, bin/, cmake/)">
+                                   title="Bundle includes:{% for pkg in item.bundle_packages %}&#10;  - {{ pkg }}{% endfor %}">
                                    🗂️ Bundle
                                 </a>
                             </div>
