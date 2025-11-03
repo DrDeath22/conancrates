@@ -341,7 +341,7 @@ def extract_dependencies_from_graph(dependency_graph):
     return dependencies
 
 
-def upload_package(server_url, recipe_path, binary_path, package_ref, package_id=None, dependency_graph=None):
+def upload_package(server_url, recipe_path, binary_path, package_ref, package_id=None, dependency_graph=None, rust_crate_path=None):
     """
     Upload package to ConanCrates server.
 
@@ -352,6 +352,7 @@ def upload_package(server_url, recipe_path, binary_path, package_ref, package_id
         package_ref: Package reference like "boost/1.81.0" (name/version)
         package_id: Real Conan package_id (optional, recommended)
         dependency_graph: Dependency graph dict from conan graph info (optional, recommended)
+        rust_crate_path: Path to .crate file (optional)
 
     Returns:
         True if successful, False otherwise
@@ -365,11 +366,23 @@ def upload_package(server_url, recipe_path, binary_path, package_ref, package_id
         # Get Conan version
         conan_version = get_conan_version()
 
-        with open(recipe_path, 'rb') as recipe_file, open(binary_path, 'rb') as binary_file:
+        file_handles = []
+        try:
+            # Open files
+            recipe_file = open(recipe_path, 'rb')
+            binary_file = open(binary_path, 'rb')
+            file_handles.extend([recipe_file, binary_file])
+
             files = {
                 'recipe': ('conanfile.py', recipe_file, 'text/plain'),
                 'binary': (binary_path.name, binary_file, 'application/gzip')
             }
+
+            # Add rust crate if available
+            if rust_crate_path and Path(rust_crate_path).exists():
+                rust_crate_file = open(rust_crate_path, 'rb')
+                file_handles.append(rust_crate_file)
+                files['rust_crate'] = (Path(rust_crate_path).name, rust_crate_file, 'application/gzip')
 
             data = {
                 'package_name': package_name,
@@ -384,6 +397,8 @@ def upload_package(server_url, recipe_path, binary_path, package_ref, package_id
             print(f"Uploading to {upload_url}...")
             print(f"  Recipe: {recipe_path}")
             print(f"  Binary: {binary_path}")
+            if rust_crate_path:
+                print(f"  Rust Crate: {rust_crate_path}")
             print(f"  Conan version: {conan_version}")
             if package_id:
                 print(f"  Package ID: {package_id}")
@@ -392,6 +407,10 @@ def upload_package(server_url, recipe_path, binary_path, package_ref, package_id
                 print(f"  Dependencies: {dep_count} package(s) in graph")
 
             response = requests.post(upload_url, files=files, data=data)
+        finally:
+            # Close all file handles
+            for fh in file_handles:
+                fh.close()
 
             if response.status_code == 200:
                 result = response.json()
@@ -464,13 +483,33 @@ def upload_single_package(server_url, package_ref, profile, package_id=None):
     # Get dependency graph with profile
     dependency_graph = get_dependency_graph(package_ref, package_id, cache_path, profile)
 
-    # Create tarball
+    # Create tarball and rust crate
     with tempfile.TemporaryDirectory() as tmpdir:
         tarball_path = Path(tmpdir) / f"{package_ref.replace('/', '-')}-{package_id}.tgz"
         create_binary_tarball(package_ref, package_id, tarball_path)
 
+        # Generate Rust crate
+        rust_crate_path = None
+        try:
+            print(f"  Generating Rust crate...")
+            class RustArgs:
+                pass
+            rust_args = RustArgs()
+            rust_args.package_ref = package_ref
+            rust_args.profile = profile
+            rust_args.output = tmpdir  # Use temp dir
+
+            rust_result = cmd_generate_rust_crate(rust_args)
+            if isinstance(rust_result, tuple):
+                exit_code, crate_path = rust_result
+                if exit_code == 0:
+                    rust_crate_path = crate_path
+                    print(f"  ✓ Rust crate generated")
+        except Exception as e:
+            print(f"  ⚠ Warning: Rust crate generation failed: {e}")
+
         # Upload
-        if upload_package(server_url, recipe_path, tarball_path, package_ref, package_id=package_id, dependency_graph=dependency_graph):
+        if upload_package(server_url, recipe_path, tarball_path, package_ref, package_id=package_id, dependency_graph=dependency_graph, rust_crate_path=rust_crate_path):
             return 0
         else:
             return 1

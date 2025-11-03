@@ -272,6 +272,17 @@ def upload_package(request):
         binary.sha256 = sha256
         binary.file_size = binary_file.size
         binary.dependency_graph = dependency_graph  # Update graph even if binary exists
+
+        # Save Rust crate file if provided
+        if 'rust_crate' in request.FILES:
+            rust_crate_file = request.FILES['rust_crate']
+            crate_name = package_name.replace('_', '-')
+            binary.rust_crate_file.save(
+                f"{crate_name}-sys-{version}.crate",
+                rust_crate_file,
+                save=False
+            )
+
         binary.save()
 
         # Create dependencies from metadata (if parsed from requires field)
