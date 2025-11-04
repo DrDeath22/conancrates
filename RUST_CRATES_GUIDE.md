@@ -441,16 +441,346 @@ python conancrates.py download mylib/1.0.0 --crates --package-id <windows_id>
 python conancrates.py download mylib/1.0.0 --crates --package-id <linux_id> -o ./rust_crates_linux
 ```
 
+## Testing Downloaded Crates
+
+After downloading Rust crates, you should verify they work correctly before integrating them into your project.
+
+### Quick Test: Extract and Build
+
+1. **Extract the crate archives:**
+```bash
+cd rust_crates
+tar -xzf mylib-sys-1.0.0.crate
+# Extract dependencies too
+tar -xzf deplib-sys-1.0.0.crate
+```
+
+2. **Try building the crate directly:**
+```bash
+cd mylib-sys
+cargo build
+```
+
+This will:
+- Verify the Cargo.toml is valid
+- Run the build.rs script to link libraries
+- Check that all path dependencies are found
+- Compile the Rust FFI bindings
+
+**Expected result:** Build should succeed with warnings about unused code (since the template lib.rs has no actual bindings yet).
+
+### Full Test: Create Test Project
+
+For a more thorough test, create a simple Rust project that uses the crate:
+
+1. **Create a test project:**
+```bash
+# Navigate to where you want to create the test project
+cd /path/to/your/workspace
+
+# Create a new Rust binary project
+cargo new crate_test
+cd crate_test
+```
+
+This creates:
+```
+crate_test/
+├── Cargo.toml
+└── src/
+    └── main.rs
+```
+
+2. **Add the crate as a dependency in Cargo.toml:**
+
+Open `Cargo.toml` and add your crate under `[dependencies]`:
+
+```toml
+[package]
+name = "crate_test"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+mylib-sys = { version = "1.0.0", path = "../rust_crates/mylib-sys" }
+```
+
+**Important:** The path is relative to the Cargo.toml file. Adjust based on where you extracted the crates.
+
+3. **Use the crate in src/main.rs:**
+
+```rust
+fn main() {
+    println!("Testing mylib-sys crate...");
+
+    // If you've added actual FFI bindings:
+    // unsafe {
+    //     let result = mylib_sys::my_function(42);
+    //     println!("Result: {}", result);
+    // }
+
+    println!("Crate linked successfully!");
+}
+```
+
+4. **Build the test project:**
+```bash
+cargo build
+```
+
+This will:
+- Download and compile any additional dependencies
+- Build the mylib-sys crate and its dependencies
+- Link everything together
+
+5. **Run the test:**
+```bash
+cargo run
+```
+
+Expected output:
+```
+   Compiling mylib-sys v1.0.0 (/path/to/rust_crates/mylib-sys)
+   Compiling crate_test v0.1.0 (/path/to/crate_test)
+    Finished dev [unoptimized + debuginfo] target(s) in 2.34s
+     Running `target/debug/crate_test`
+Testing mylib-sys crate...
+Crate linked successfully!
+```
+
+### Adding Rust Tests
+
+To add proper Rust unit tests that verify the crate works:
+
+1. **Create a test in src/main.rs or src/lib.rs:**
+
+If you created a binary project (with `cargo new`), add tests to `src/main.rs`:
+
+```rust
+fn main() {
+    println!("Testing mylib-sys crate...");
+    println!("Crate linked successfully!");
+}
+
+#[cfg(test)]
+mod tests {
+    // Import the crate
+    // use mylib_sys::*;
+
+    #[test]
+    fn test_crate_links() {
+        // Basic test that the crate compiles and links
+        // This will fail at compile time if linking is broken
+        assert!(true);
+    }
+
+    #[test]
+    fn test_ffi_function() {
+        // Example test if you have actual FFI bindings:
+        // unsafe {
+        //     let result = mylib_sys::my_function(42);
+        //     assert_eq!(result, 42);
+        // }
+
+        // For now, just verify compilation works
+        println!("FFI bindings compiled successfully");
+    }
+}
+```
+
+2. **Or create a library project with tests:**
+
+For more extensive testing, create a library project instead:
+
+```bash
+cargo new --lib crate_test
+cd crate_test
+```
+
+Edit `src/lib.rs`:
+
+```rust
+// Re-export the FFI crate
+pub use mylib_sys;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mylib_links() {
+        // Test that the crate links correctly
+        // This will fail if there are linker errors
+    }
+
+    #[test]
+    fn test_dependency_chain() {
+        // If mylib-sys has dependencies, they should also link
+        // The build.rs in each crate handles this
+    }
+
+    // Add actual FFI tests here when you have bindings:
+    // #[test]
+    // fn test_my_function() {
+    //     unsafe {
+    //         let result = mylib_sys::my_function(42);
+    //         assert_eq!(result, 42);
+    //     }
+    // }
+}
+```
+
+3. **Run the tests:**
+
+```bash
+cargo test
+```
+
+Expected output:
+```
+   Compiling deplib-sys v1.0.0 (/path/to/rust_crates/deplib-sys)
+   Compiling mylib-sys v1.0.0 (/path/to/rust_crates/mylib-sys)
+   Compiling crate_test v0.1.0 (/path/to/crate_test)
+    Finished test [unoptimized + debuginfo] target(s) in 3.21s
+     Running unittests src/main.rs (target/debug/deps/crate_test-xxx)
+
+running 2 tests
+test tests::test_crate_links ... ok
+test tests::test_ffi_function ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+```
+
+4. **Run tests with verbose output:**
+
+```bash
+cargo test -- --nocapture
+```
+
+This shows all println! output from your tests, useful for debugging.
+
+### Integration Test Example
+
+For integration tests, create a `tests/` directory:
+
+```bash
+mkdir tests
+```
+
+Create `tests/integration_test.rs`:
+
+```rust
+// Integration test for mylib-sys
+
+#[test]
+fn test_mylib_integration() {
+    // Test that we can use the crate in integration tests
+    // This simulates how external crates would use mylib-sys
+
+    // Basic smoke test - if this compiles and runs, linking works
+    assert!(true);
+}
+
+// Example with actual FFI usage:
+// #[test]
+// fn test_full_workflow() {
+//     unsafe {
+//         // Initialize
+//         mylib_sys::init();
+//
+//         // Use functions
+//         let result = mylib_sys::process_data(42);
+//         assert_eq!(result, 84);
+//
+//         // Cleanup
+//         mylib_sys::cleanup();
+//     }
+// }
+```
+
+Run integration tests:
+```bash
+cargo test --test integration_test
+```
+
+### Verify Crate Contents
+
+Check that the crate has all expected files:
+
+```bash
+cd rust_crates/mylib-sys
+ls -R
+```
+
+**Expected structure:**
+```
+mylib-sys/
+├── Cargo.toml          # Package manifest with dependencies
+├── build.rs            # Build script that links libraries
+├── README.md           # Usage documentation
+├── src/
+│   └── lib.rs          # Rust FFI bindings (template)
+├── native/
+│   └── current/        # Pre-compiled libraries (.lib, .a, .so, .dylib)
+└── include/            # C/C++ header files
+```
+
+### Check Dependencies
+
+Verify that dependencies are correctly referenced:
+
+```bash
+cd rust_crates/mylib-sys
+cat Cargo.toml | grep -A 2 "\[dependencies\]"
+```
+
+**Expected output:**
+```toml
+[dependencies]
+deplib-sys = { version = "1.0.0", path = "../deplib-sys" }
+```
+
+### Test Dependency Chain
+
+If your crate has dependencies, verify the entire chain builds:
+
+```bash
+cd rust_crates/mylib-sys
+cargo build -v
+```
+
+The verbose output will show:
+- Each dependency being compiled
+- Library search paths being set
+- Static libraries being linked
+
+### Common Test Failures
+
+**Build fails with "package not found":**
+- Dependency crates not extracted to the same directory
+- Path in Cargo.toml is incorrect
+- Check: `ls ../deplib-sys` should list the dependency crate
+
+**Link errors about undefined symbols:**
+- Binary was built for wrong platform
+- Verify with: `file native/current/*.a` (Unix) or check .lib files (Windows)
+- Re-download with correct package_id for your platform
+
+**Cargo.toml parse errors:**
+- Crate archive may be corrupted
+- Re-download and extract
+
 ## Best Practices
 
 1. **Always download with --crates flag** to get dependencies automatically
 2. **Extract all crates to the same directory** to enable path dependencies
-3. **Use meaningful commit messages** when updating crate bindings
-4. **Test FFI bindings** with Rust's `#[test]` framework
-5. **Document unsafe code** and FFI usage in your project
-6. **Keep header files** in the crate for reference when writing bindings
-7. **Version lock dependencies** in your main project's Cargo.lock
-8. **CI/CD:** Automate downloads and extraction in your build pipeline
+3. **Test crates immediately after download** to catch issues early
+4. **Use meaningful commit messages** when updating crate bindings
+5. **Test FFI bindings** with Rust's `#[test]` framework
+6. **Document unsafe code** and FFI usage in your project
+7. **Keep header files** in the crate for reference when writing bindings
+8. **Version lock dependencies** in your main project's Cargo.lock
+9. **CI/CD:** Automate downloads, extraction, and testing in your build pipeline
 
 ## Related Documentation
 

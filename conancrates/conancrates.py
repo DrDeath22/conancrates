@@ -1373,7 +1373,11 @@ def cmd_generate_rust_crate(args):
             if lib_file.suffix in ['.a', '.lib', '.so', '.dylib']:
                 # Extract library name (remove lib prefix and extension)
                 lib_name = lib_file.stem
-                if lib_name.startswith('lib'):
+                # Only strip "lib" prefix from Unix-style libraries (.a, .so, .dylib)
+                # Windows .lib files don't follow the "lib" prefix convention:
+                #   - Static libs on Windows: libfoo.lib (keep "lib")
+                #   - Import libs on Windows: foo.lib (no "lib" to strip)
+                if lib_name.startswith('lib') and lib_file.suffix in ['.a', '.so', '.dylib']:
                     lib_name = lib_name[3:]
                 libraries.append((lib_name, lib_file))
 
