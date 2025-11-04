@@ -527,12 +527,24 @@ def upload_single_package(server_url, package_ref, profile, package_id=None):
         return 1
 
     # Get dependency graph with profile
+    print(f"  Getting dependency graph...")
     dependency_graph = get_dependency_graph(package_ref, package_id, cache_path, profile)
+    if dependency_graph and 'graph' in dependency_graph:
+        dep_count = len(dependency_graph['graph'].get('nodes', {})) - 1  # -1 for main package
+        if dep_count > 0:
+            print(f"  ✓ Found {dep_count} dependencies")
+        else:
+            print(f"  ✓ No dependencies")
 
     # Create tarball and rust crate
     with tempfile.TemporaryDirectory() as tmpdir:
+        print(f"  Creating binary tarball...")
         tarball_path = Path(tmpdir) / f"{package_ref.replace('/', '-')}-{package_id}.tgz"
         create_binary_tarball(package_ref, package_id, tarball_path)
+
+        # Show tarball size
+        tarball_size_kb = tarball_path.stat().st_size / 1024
+        print(f"  ✓ Binary tarball created ({tarball_size_kb:.1f} KB)")
 
         # Generate Rust crate
         rust_crate_path = None
@@ -555,9 +567,12 @@ def upload_single_package(server_url, package_ref, profile, package_id=None):
             print(f"  ⚠ Warning: Rust crate generation failed: {e}")
 
         # Upload
+        print(f"  Uploading to server...")
         if upload_package(server_url, recipe_path, tarball_path, package_ref, package_id=package_id, dependency_graph=dependency_graph, rust_crate_path=rust_crate_path):
+            print(f"  ✓ Upload completed successfully")
             return 0
         else:
+            print(f"  ✗ Upload failed")
             return 1
 
 
