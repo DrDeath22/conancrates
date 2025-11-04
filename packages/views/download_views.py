@@ -1041,3 +1041,312 @@ def download_rust_crate(request, package_name, version, package_id):
     crate_name = f"{package_name.replace('_', '-')}-sys-{version}.crate"
     response['Content-Disposition'] = f'attachment; filename="{crate_name}"'
     return response
+
+
+def download_rust_bundle(request, package_name, version, package_id):
+    """
+    Download a bundle containing the requested Rust crate and all its dependencies.
+    Returns a .zip file with all crate directories and path dependencies configured.
+    """
+    import re
+    
+    package = get_object_or_404(Package, name=package_name)
+    package_version = get_object_or_404(PackageVersion, package=package, version=version)
+    binary = get_object_or_404(BinaryPackage, package_version=package_version, package_id=package_id)
+
+    # Check if rust crate and dependency graph exist
+    if not binary.rust_crate_file or not binary.rust_crate_file.name:
+        return HttpResponse(
+            f"Rust crate not available for {package_name}/{version}",
+            status=404,
+            content_type='text/plain'
+        )
+
+    if not binary.dependency_graph:
+        return HttpResponse(
+            f"Dependency graph not available for {package_name}/{version}",
+            status=404,
+            content_type='text/plain'
+        )
+
+    # Parse dependency graph
+    try:
+        dep_graph = binary.dependency_graph if isinstance(binary.dependency_graph, dict) else json.loads(binary.dependency_graph)
+    except json.JSONDecodeError:
+        return HttpResponse("Invalid dependency graph", status=500, content_type='text/plain')
+
+    # Extract dependencies
+    dependencies = []
+    nodes = dep_graph.get('graph', {}).get('nodes', {})
+    for node_id, node in nodes.items():
+        if node_id == "0":
+            continue
+        ref = node.get('ref', '')
+        if '/' not in ref:
+            continue
+        dep_name, dep_version_with_hash = ref.split('/', 1)
+        dep_version = dep_version_with_hash.split('#')[0]
+        dep_package_id = node.get('package_id')
+        if dep_package_id:
+            dependencies.append({
+                'name': dep_name,
+                'version': dep_version,
+                'package_id': dep_package_id
+            })
+
+    # Create temp directory
+    temp_dir = tempfile.mkdtemp()
+    try:
+        crates_dir = os.path.join(temp_dir, 'crates')
+        os.makedirs(crates_dir)
+
+        # Download and extract main crate
+        main_crate_name = f"{package_name.replace('_', '-')}-sys"
+        main_crate_file = f"{main_crate_name}-{version}.crate"
+        main_crate_path = os.path.join(crates_dir, main_crate_file)
+
+        with open(main_crate_path, 'wb') as f:
+            binary.rust_crate_file.seek(0)
+            f.write(binary.rust_crate_file.read())
+
+        with tarfile.open(main_crate_path, 'r:gz') as tar:
+            tar.extractall(crates_dir)
+        os.remove(main_crate_path)
+
+        # Download and extract dependency crates
+        dep_crate_names = []
+        for dep in dependencies:
+            dep_pkg = Package.objects.filter(name=dep['name']).first()
+            if not dep_pkg:
+                continue
+            dep_ver = PackageVersion.objects.filter(package=dep_pkg, version=dep['version']).first()
+            if not dep_ver:
+                continue
+            dep_bin = BinaryPackage.objects.filter(
+                package_version=dep_ver, package_id=dep['package_id']
+            ).first()
+            if not dep_bin or not dep_bin.rust_crate_file:
+                continue
+
+            dep_crate_name = f"{dep['name'].replace('_', '-')}-sys"
+            dep_crate_file = f"{dep_crate_name}-{dep['version']}.crate"
+            dep_crate_path = os.path.join(crates_dir, dep_crate_file)
+
+            with open(dep_crate_path, 'wb') as f:
+                dep_bin.rust_crate_file.seek(0)
+                f.write(dep_bin.rust_crate_file.read())
+
+            with tarfile.open(dep_crate_path, 'r:gz') as tar:
+                tar.extractall(crates_dir)
+            os.remove(dep_crate_path)
+
+            dep_crate_names.append(dep_crate_name)
+
+        # Update Cargo.toml files to use path dependencies
+        for crate_dir_name in [main_crate_name] + dep_crate_names:
+            cargo_toml = os.path.join(crates_dir, crate_dir_name, 'Cargo.toml')
+            if not os.path.exists(cargo_toml):
+                continue
+                
+            with open(cargo_toml, 'r') as f:
+                content = f.read()
+
+            # Replace simple version dependencies with path dependencies
+            for dep_name in dep_crate_names:
+                pattern = f'{re.escape(dep_name)} = "([^"]+)"'
+                replacement = f'{dep_name} = {{ version = "\1", path = "../{dep_name}" }}'
+                content = re.sub(pattern, replacement, content)
+
+            with open(cargo_toml, 'w') as f:
+                f.write(content)
+
+        # Create README
+        with open(os.path.join(crates_dir, 'README.md'), 'w') as f:
+            f.write(f"""# Rust Crate Bundle: {main_crate_name}
+
+This bundle contains {main_crate_name} and all its dependencies.
+
+## Contents
+- {main_crate_name}/ - Main crate
+""")
+            for dep in dep_crate_names:
+                f.write(f"- {dep}/ - Dependency\n")
+            f.write(f"""
+## Usage
+
+1. Extract this bundle
+2. Copy the crates/ directory to your project
+3. In your Cargo.toml, add:
+   ```toml
+   [dependencies]
+   {main_crate_name} = {{ version = "{version}", path = "crates/{main_crate_name}" }}
+   ```
+4. Run: cargo build
+
+Generated by ConanCrates
+""")
+
+        # Create zip
+        zip_path = os.path.join(temp_dir, f"{main_crate_name}-bundle.zip")
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            for root, dirs, files in os.walk(crates_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, temp_dir)
+                    zipf.write(file_path, arcname)
+
+        # Increment download count
+        binary.download_count += 1
+        binary.save(update_fields=['download_count'])
+
+        # Return zip
+        with open(zip_path, 'rb') as f:
+            response = HttpResponse(f.read(), content_type='application/zip')
+            response['Content-Disposition'] = f'attachment; filename="{main_crate_name}-bundle.zip"'
+            return response
+
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def get_package_info_api(request, package_name, version, package_id):
+    """
+    API endpoint to get package information including dependencies.
+    Returns JSON with package details and dependency graph.
+    """
+    package = get_object_or_404(Package, name=package_name)
+    package_version = get_object_or_404(PackageVersion, package=package, version=version)
+    binary = get_object_or_404(BinaryPackage, package_version=package_version, package_id=package_id)
+
+    # Extract dependencies from graph
+    dependencies = []
+    if binary.dependency_graph:
+        dep_graph = binary.dependency_graph if isinstance(binary.dependency_graph, dict) else json.loads(binary.dependency_graph)
+        nodes = dep_graph.get('graph', {}).get('nodes', {})
+        
+        for node_id, node in nodes.items():
+            if node_id == "0":
+                continue
+            ref = node.get('ref', '')
+            if '/' not in ref:
+                continue
+            dep_name, dep_version_with_hash = ref.split('/', 1)
+            dep_version = dep_version_with_hash.split('#')[0]
+            dep_package_id = node.get('package_id')
+            
+            if dep_package_id:
+                dependencies.append({
+                    'name': dep_name,
+                    'version': dep_version,
+                    'package_id': dep_package_id
+                })
+
+    response_data = {
+        'package': {
+            'name': package_name,
+            'version': version,
+            'package_id': package_id
+        },
+        'rust_crate': {
+            'available': bool(binary.rust_crate_file),
+            'crate_name': f"{package_name.replace('_', '-')}-sys",
+            'download_url': f"/packages/{package_name}/{version}/binaries/{package_id}/rust-crate/"
+        },
+        'dependencies': dependencies
+    }
+
+    return JsonResponse(response_data)
+
+
+def get_rust_crate_by_settings_api(request, package_name, version):
+    """
+    API endpoint to get Rust crate download URL by platform settings.
+    Query params: os, arch, compiler, compiler_version, build_type
+    Returns the matching package_id and download URL.
+    """
+    # Get settings from query params
+    os_name = request.GET.get('os')
+    arch = request.GET.get('arch')
+    compiler = request.GET.get('compiler')
+    compiler_version = request.GET.get('compiler_version')
+    build_type = request.GET.get('build_type')
+
+    package = get_object_or_404(Package, name=package_name)
+    package_version = get_object_or_404(PackageVersion, package=package, version=version)
+
+    # Find matching binary
+    binaries = BinaryPackage.objects.filter(package_version=package_version)
+
+    if os_name:
+        binaries = binaries.filter(os=os_name)
+    if arch:
+        binaries = binaries.filter(arch=arch)
+    if compiler:
+        binaries = binaries.filter(compiler=compiler)
+    if compiler_version:
+        binaries = binaries.filter(compiler_version=compiler_version)
+    if build_type:
+        binaries = binaries.filter(build_type=build_type)
+
+    # Filter to only those with rust crates
+    binaries = binaries.exclude(rust_crate_file='')
+
+    if not binaries.exists():
+        return JsonResponse({
+            'error': 'No matching binary package with Rust crate found',
+            'requested': {
+                'os': os_name,
+                'arch': arch,
+                'compiler': compiler,
+                'compiler_version': compiler_version,
+                'build_type': build_type
+            }
+        }, status=404)
+
+    # Return first match
+    binary = binaries.first()
+
+    # Get dependencies
+    dependencies = []
+    if binary.dependency_graph:
+        dep_graph = binary.dependency_graph if isinstance(binary.dependency_graph, dict) else json.loads(binary.dependency_graph)
+        nodes = dep_graph.get('graph', {}).get('nodes', {})
+
+        for node_id, node in nodes.items():
+            if node_id == "0":
+                continue
+            ref = node.get('ref', '')
+            if '/' not in ref:
+                continue
+            dep_name, dep_version_with_hash = ref.split('/', 1)
+            dep_version = dep_version_with_hash.split('#')[0]
+            dep_package_id = node.get('package_id')
+
+            if dep_package_id:
+                dependencies.append({
+                    'name': dep_name,
+                    'version': dep_version,
+                    'package_id': dep_package_id
+                })
+
+    response_data = {
+        'package': {
+            'name': package_name,
+            'version': version,
+            'package_id': binary.package_id
+        },
+        'settings': {
+            'os': binary.os,
+            'arch': binary.arch,
+            'compiler': binary.compiler,
+            'compiler_version': binary.compiler_version,
+            'build_type': binary.build_type
+        },
+        'rust_crate': {
+            'crate_name': f"{package_name.replace('_', '-')}-sys",
+            'download_url': f"/packages/{package_name}/{version}/binaries/{binary.package_id}/rust-crate/"
+        },
+        'dependencies': dependencies
+    }
+
+    return JsonResponse(response_data)

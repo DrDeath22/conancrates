@@ -133,7 +133,7 @@
                         <!-- For Conan users: Use CLI -->
                         <details style="border-left: 3px solid #1976d2; padding: 0.5rem; background: #e3f2fd; border-radius: 4px;">
                             <summary style="cursor: pointer; font-weight: bold; color: #1976d2; font-size: 0.9rem;">
-                                🔧 Conan CLI
+                                🔧 CLI (Conan or Rust)
                             </summary>
                             <div style="margin-top: 0.5rem;">
                                 <div style="font-size: 0.85rem; color: #333; margin-bottom: 0.25rem;">Profile settings:</div>
@@ -144,23 +144,17 @@ compiler={{ item.binary.compiler }}
 compiler.version={{ item.binary.compiler_version }}
 build_type={{ item.binary.build_type }}</code></pre>
                                 <div style="font-size: 0.75rem; color: #666; margin-bottom: 0.25rem;">Save as: <code style="background: white; padding: 1px 3px; border-radius: 2px; font-size: 0.7rem;">~/.conan2/profiles/{{ item.binary.os|lower }}_{{ item.binary.compiler }}{{ item.binary.compiler_version }}_{{ item.binary.build_type|lower }}</code></div>
-                                <div style="font-size: 0.85rem; color: #333; margin-bottom: 0.25rem;">Download:</div>
+                                <div style="font-size: 0.85rem; color: #333; margin-bottom: 0.25rem; margin-top: 0.5rem;">Download Conan packages:</div>
                                 <pre style="background: #263238; color: #aed581; padding: 0.4rem; border-radius: 3px; margin: 0; font-size: 0.7rem; overflow-x: auto;"><code>python conancrates.py download {{ package.name }}/{{ selected_version.version }} -pr {{ item.binary.os|lower }}_{{ item.binary.compiler }}{{ item.binary.compiler_version }}_{{ item.binary.build_type|lower }}</code></pre>
+
+                                <div style="font-size: 0.85rem; color: #333; margin-bottom: 0.25rem; margin-top: 0.5rem;">Download Rust crates:</div>
+                                <pre style="background: #263238; color: #aed581; padding: 0.4rem; border-radius: 3px; margin: 0; font-size: 0.7rem; overflow-x: auto;"><code>python conancrates.py download {{ package.name }}/{{ selected_version.version }} --crates -pr {{ item.binary.os|lower }}_{{ item.binary.compiler }}{{ item.binary.compiler_version }}_{{ item.binary.build_type|lower }}</code></pre>
                             </div>
                         </details>
 
-                        <!-- Direct Downloads by Ecosystem -->
+                        <!-- Downloads by Type -->
                         <div style="border-left: 3px solid #2e7d32; padding: 0.5rem; background: #e8f5e9; border-radius: 4px;">
                             <div style="display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-start;">
-                                <!-- Rust -->
-                                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
-                                    <div style="font-size: 0.7rem; color: #666; font-weight: bold;">Rust:</div>
-                                    <a href="{% url 'packages:download_rust_crate' package.name selected_version.version item.binary.package_id %}"
-                                       style="color: #d84315; text-decoration: none; font-weight: bold; font-size: 0.85rem;"
-                                       title="Download Rust -sys crate (.crate archive)">
-                                       🦀 Crate
-                                    </a>
-                                </div>
 
                                 <!-- CMake -->
                                 <div style="display: flex; flex-direction: column; gap: 0.25rem;">
@@ -169,15 +163,25 @@ build_type={{ item.binary.build_type }}</code></pre>
                                         <a href="{% url 'packages:download_extracted_binary' package.name selected_version.version item.binary.package_id %}"
                                            style="color: #1565c0; text-decoration: none; font-weight: bold; font-size: 0.85rem;"
                                            title="Download with CMake configs (include/, lib/, cmake/)">
-                                           ⚙️ Pkg
+                                           Pkg
                                         </a>
                                         <span style="color: #ddd;">|</span>
                                         <a href="{% url 'packages:download_extracted_bundle' package.name selected_version.version %}?os={{ item.binary.os }}&arch={{ item.binary.arch }}&compiler={{ item.binary.compiler }}&compiler_version={{ item.binary.compiler_version }}&build_type={{ item.binary.build_type }}"
                                            style="color: #1565c0; text-decoration: none; font-weight: bold; font-size: 0.85rem;"
                                            title="Bundle with dependencies for CMake">
-                                           🗂️ Bundle
+                                           Bundle
                                         </a>
                                     </div>
+                                </div>
+                                
+                                <!-- Rust Crate -->
+                                <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                                    <div style="font-size: 0.7rem; color: #666; font-weight: bold;">Rust:</div>
+                                    <a href="{% url 'packages:download_rust_crate' package.name selected_version.version item.binary.package_id %}"
+                                       style="color: #d84315; text-decoration: none; font-weight: bold; font-size: 0.85rem;"
+                                       title="Download single .crate file">
+                                       Crate
+                                    </a>
                                 </div>
                             </div>
                         </div>
@@ -189,6 +193,26 @@ build_type={{ item.binary.build_type }}</code></pre>
     </table>
 </div>
 {% endif %}
+
+<div class="card" style="background: #fff3e0;">
+    <h2>📦 Using with Conan</h2>
+    <p style="margin-bottom: 1rem;">For Conan development workflows, use the ConanCrates CLI to download and use packages:</p>
+
+    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;">1. Download from ConanCrates:</h3>
+    <pre style="background: #263238; color: #aed581; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>python conancrates.py download {{ package.name }}/{{ selected_version.version }}</code></pre>
+    <p style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">Downloads recipe (conanfile.py) + binary packages to <code>./conan_packages/{{ package.name }}-{{ selected_version.version }}/</code></p>
+
+    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; margin-top: 1.5rem;">2. Add to your project's <strong>conanfile.txt</strong>:</h3>
+    <pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>[requires]
+{{ package.name }}/{{ selected_version.version }}</code></pre>
+
+    <p style="margin: 1rem 0 0.5rem 0;">Or in your <strong>conanfile.py</strong>:</p>
+    <pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>class MyProject(ConanFile):
+    requires = "{{ package.name }}/{{ selected_version.version }}"</code></pre>
+
+    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; margin-top: 1.5rem;">Upload to ConanCrates:</h3>
+    <pre style="background: #263238; color: #aed581; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>python conancrates.py upload {{ package.name }}/{{ selected_version.version }}</code></pre>
+</div>
 
 {% if selected_version.recipe_content %}
 <div class="card" style="background: #e3f2fd;">
@@ -212,24 +236,24 @@ build_type={{ item.binary.build_type }}</code></pre>
 </div>
 {% endif %}
 
-<div class="card" style="background: #fff3e0;">
-    <h2>📦 Using with Conan</h2>
-    <p style="margin-bottom: 1rem;">For Conan development workflows, use the ConanCrates CLI to download and use packages:</p>
+<div class="card" style="background: #fff3e0; margin-top: 2rem;">
+    <h2>🦀 Using with Rust</h2>
+    <p style="margin-bottom: 1rem;">For Rust projects, download the pre-compiled Rust crates with all dependencies:</p>
 
-    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;">1. Download from ConanCrates:</h3>
-    <pre style="background: #263238; color: #aed581; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>python conancrates.py download {{ package.name }}/{{ selected_version.version }}</code></pre>
-    <p style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">Downloads recipe (conanfile.py) + binary packages to <code>./conan_packages/{{ package.name }}-{{ selected_version.version }}/</code></p>
+    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem;">1. Download Rust crates from ConanCrates:</h3>
+    <pre style="background: #263238; color: #aed581; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>python conancrates.py download {{ package.name }}/{{ selected_version.version }} --crates -pr &lt;profile&gt;</code></pre>
+    <p style="font-size: 0.9rem; color: #666; margin-top: 0.5rem;">Downloads {{ package.name }}-sys.crate + all dependency crates to <code>./rust_crates/</code></p>
 
-    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; margin-top: 1.5rem;">2. Add to your project's <strong>conanfile.txt</strong>:</h3>
-    <pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>[requires]
-{{ package.name }}/{{ selected_version.version }}</code></pre>
+    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; margin-top: 1.5rem;">2. Extract the crates:</h3>
+    <pre style="background: #263238; color: #aed581; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>cd rust_crates
+tar -xzf {{ package.name }}-sys-{{ selected_version.version }}.crate
+# Extract dependency crates as well</code></pre>
 
-    <p style="margin: 1rem 0 0.5rem 0;">Or in your <strong>conanfile.py</strong>:</p>
-    <pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>class MyProject(ConanFile):
-    requires = "{{ package.name }}/{{ selected_version.version }}"</code></pre>
+    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; margin-top: 1.5rem;">3. Add to your <strong>Cargo.toml</strong>:</h3>
+    <pre style="background: #2c3e50; color: #ecf0f1; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>[dependencies]
+{{ package.name }}-sys = { version = "{{ selected_version.version }}", path = "rust_crates/{{ package.name }}-sys" }</code></pre>
 
-    <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; margin-top: 1.5rem;">Upload to ConanCrates:</h3>
-    <pre style="background: #263238; color: #aed581; padding: 1rem; border-radius: 4px; overflow-x: auto;"><code>python conancrates.py upload {{ package.name }}/{{ selected_version.version }}</code></pre>
+    <p style="margin-top: 1rem; font-size: 0.9rem; color: #666;">The crate includes pre-compiled native libraries and headers. Dependencies are automatically configured with path references.</p>
 </div>
 {% endif %}
 {% endblock %}

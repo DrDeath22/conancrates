@@ -29,9 +29,15 @@ urlpatterns = [
     path('packages/<str:package_name>/<str:version>/bundle/extracted/',
          views.download_views.download_extracted_bundle, name='download_extracted_bundle'),
 
-    # Rust crate download
+    # Rust crate downloads and API
     path('packages/<str:package_name>/<str:version>/binaries/<str:package_id>/rust-crate/',
          views.download_views.download_rust_crate, name='download_rust_crate'),
+    path('packages/<str:package_name>/<str:version>/binaries/<str:package_id>/rust-bundle/',
+         views.download_views.download_rust_bundle, name='download_rust_bundle'),
+    path('api/packages/<str:package_name>/<str:version>/binaries/<str:package_id>/info',
+         views.download_views.get_package_info_api, name='package_info_api'),
+    path('api/packages/<str:package_name>/<str:version>/rust-crate',
+         views.download_views.get_rust_crate_by_settings_api, name='rust_crate_by_settings_api'),
 
     # Other downloads
     path('packages/<str:package_name>/<str:version>/manifest/',

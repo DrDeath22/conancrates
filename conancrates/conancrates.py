@@ -814,11 +814,130 @@ def parse_conan_profile(profile_name):
         return None
 
 
+def cmd_download_rust_crates(args):
+    """Download Rust crates with dependencies"""
+    package_ref = args.package_ref
+    server_url = args.server or "http://localhost:8000"
+    
+    if '/' not in package_ref:
+        print(f"Error: Invalid package reference. Use format: package_name/version")
+        return 1
+    
+    package_name, version = package_ref.split('/', 1)
+    
+    if not args.package_id:
+        print("Error: --package-id is required when using --crates")
+        print(f"\nFind the package_id at: {server_url}/packages/{package_name}/")
+        return 1
+    
+    package_id = args.package_id
+    output_dir = args.output or './rust_crates'
+    
+    import os
+    os.makedirs(output_dir, exist_ok=True)
+    
+    print("ConanCrates Rust Crate Download")
+    print("=" * 60)
+    print(f"Package: {package_name}/{version}")
+    print(f"Package ID: {package_id}")
+    print(f"Server: {server_url}")
+    print(f"Output: {output_dir}")
+    print("=" * 60)
+    print()
+    
+    # Get package info
+    print("1. Querying package information...")
+    info_url = f"{server_url}/api/packages/{package_name}/{version}/binaries/{package_id}/info"
+    
+    try:
+        response = requests.get(info_url)
+        response.raise_for_status()
+        package_info = response.json()
+    except Exception as e:
+        print(f"  Error: {e}")
+        return 1
+    
+    dependencies = package_info.get('dependencies', [])
+    print(f"  Found {len(dependencies)} dependencies")
+    print()
+    
+    # Download main crate
+    print("2. Downloading requested crate...")
+    crate_name = f"{package_name.replace('_', '-')}-sys"
+    crate_url = f"{server_url}/packages/{package_name}/{version}/binaries/{package_id}/rust-crate/"
+    
+    try:
+        response = requests.get(crate_url)
+        if response.status_code == 404:
+            print(f"  Error: Rust crate not available")
+            return 1
+        response.raise_for_status()
+        
+        crate_file = os.path.join(output_dir, f"{crate_name}-{version}.crate")
+        with open(crate_file, 'wb') as f:
+            f.write(response.content)
+        
+        size_kb = len(response.content) / 1024
+        print(f"  Downloaded {crate_name}-{version}.crate ({size_kb:.1f} KB)")
+        downloaded = [crate_file]
+    except Exception as e:
+        print(f"  Error: {e}")
+        return 1
+    
+    # Download dependencies
+    if dependencies:
+        print(f"\n3. Downloading {len(dependencies)} dependencies...")
+        for dep in dependencies:
+            dep_name = dep['name']
+            dep_version = dep['version']
+            dep_package_id = dep['package_id']
+            dep_crate_name = f"{dep_name.replace('_', '-')}-sys"
+            dep_url = f"{server_url}/packages/{dep_name}/{dep_version}/binaries/{dep_package_id}/rust-crate/"
+            
+            try:
+                response = requests.get(dep_url)
+                if response.status_code == 404:
+                    print(f"  Warning: {dep_crate_name} not available")
+                    continue
+                response.raise_for_status()
+                
+                dep_file = os.path.join(output_dir, f"{dep_crate_name}-{dep_version}.crate")
+                with open(dep_file, 'wb') as f:
+                    f.write(response.content)
+                
+                size_kb = len(response.content) / 1024
+                print(f"  Downloaded {dep_crate_name}-{dep_version}.crate ({size_kb:.1f} KB)")
+                downloaded.append(dep_file)
+            except Exception as e:
+                print(f"  Warning: Failed to download {dep_crate_name}: {e}")
+
+    print("\n" + "=" * 60)
+    print(f"Downloaded {len(downloaded)} crate(s) to {output_dir}")
+    print("=" * 60)
+    print()
+    print("Usage:")
+    print(f"  1. Extract crates in {output_dir}")
+    for crate in downloaded:
+        print(f"     tar -xzf {os.path.basename(crate)}")
+    print()
+    print(f"  2. Add to your Cargo.toml:")
+    print(f"     [{crate_name}]")
+    print(f'     version = "{version}"')
+    print(f'     path = "{output_dir}/{crate_name}"')
+    print()
+    
+    return 0
+
+
 def cmd_download(args):
     """
     Download package and dependencies from ConanCrates and restore to local Conan cache.
     Acts like 'conan install' - checks cache and only downloads missing packages.
     """
+    # Handle Rust crate download
+    if args.crates:
+        return cmd_download_rust_crates(args)
+    
     import zipfile
     import tarfile
     import platform
@@ -1142,6 +1261,34 @@ def cmd_generate_rust_crate(args):
 
     print(f"Found binary package: {binary_path}\n")
 
+    # Get dependency graph
+    dependency_graph = get_dependency_graph(package_ref, package_id, cache_path, profile)
+
+    # Extract dependencies from graph
+    dependencies = []
+    if dependency_graph:
+        nodes = dependency_graph.get('graph', {}).get('nodes', {})
+        for node_id, node in nodes.items():
+            if node_id == "0":  # Skip root node
+                continue
+
+            ref = node.get('ref', '')
+            if '/' not in ref:
+                continue
+
+            dep_name, dep_version_with_hash = ref.split('/', 1)
+            dep_version = dep_version_with_hash.split('#')[0]
+            dependencies.append({
+                'name': dep_name,
+                'version': dep_version
+            })
+
+    if dependencies:
+        print(f"Found {len(dependencies)} dependencies:")
+        for dep in dependencies:
+            print(f"  - {dep['name']}/{dep['version']}")
+        print()
+
     # Parse package name and version
     if '/' not in package_ref:
         print(f"✗ Error: Invalid package reference format. Expected: name/version")
@@ -1214,7 +1361,15 @@ def cmd_generate_rust_crate(args):
         import shutil
         shutil.copytree(include_dir, crate_include_dir, dirs_exist_ok=True)
 
-    # Generate Cargo.toml
+    # Generate Cargo.toml with dependencies
+    dependencies_section = ""
+    if dependencies:
+        dependencies_section = "\n[dependencies]\n"
+        for dep in dependencies:
+            dep_crate_name = f"{dep['name'].replace('_', '-')}-sys"
+            # Use path dependencies so crates work when extracted together
+            dependencies_section += f'{dep_crate_name} = {{ version = "{dep["version"]}", path = "../{dep_crate_name}" }}\n'
+
     cargo_toml_content = f'''[package]
 name = "{crate_name}"
 version = "{pkg_version}"
@@ -1238,7 +1393,7 @@ path = "src/lib.rs"
 # description = "Rust bindings for {pkg_name}"
 # license = "MIT"
 # repository = "https://github.com/..."
-'''
+{dependencies_section}'''
 
     with open(crate_dir / 'Cargo.toml', 'w') as f:
         f.write(cargo_toml_content)
@@ -1427,6 +1582,15 @@ def main():
         '--keep-zip',
         action='store_true',
         help='Keep the downloaded ZIP file after extraction'
+    )
+    download_parser.add_argument(
+        '--crates',
+        action='store_true',
+        help='Download Rust crates instead of Conan packages (requires --package-id)'
+    )
+    download_parser.add_argument(
+        '--package-id',
+        help='Package ID for Rust crate download (required with --crates)'
     )
 
     # Generate Rust crate command
