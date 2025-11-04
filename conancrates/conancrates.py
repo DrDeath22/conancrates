@@ -731,37 +731,6 @@ def cmd_upload(args):
         return 1
     else:
         print(f"\n✓ All packages uploaded successfully!")
-
-        # Generate Rust crate (unless --no-rust specified)
-        no_rust = getattr(args, 'no_rust', False)
-        if not no_rust:
-            print(f"\n{'='*60}")
-            print(f"Generating Rust Crate...")
-            print(f"{'='*60}\n")
-
-            # Create a mock args object for rust crate generation
-            class RustArgs:
-                pass
-
-            rust_args = RustArgs()
-            rust_args.package_ref = package_ref
-            rust_args.profile = profile
-            rust_args.output = './rust_crates'
-
-            rust_result = cmd_generate_rust_crate(rust_args)
-            if isinstance(rust_result, tuple):
-                exit_code, crate_path = rust_result
-                if exit_code == 0:
-                    # TODO: Upload the .crate file to the server
-                    # This would require an API endpoint to accept rust crate uploads
-                    print(f"\n✓ Rust crate available at: {crate_path}")
-                else:
-                    print(f"\n⚠ Warning: Rust crate generation failed, but upload was successful")
-            elif rust_result != 0:
-                print(f"\n⚠ Warning: Rust crate generation failed, but upload was successful")
-        else:
-            print(f"\nℹ Skipped Rust crate generation (--no-rust specified)")
-
         return 0
 
 

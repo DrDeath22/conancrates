@@ -52,3 +52,4 @@ htmlcov/
 *.bak
 *.tmp
 .claude/
+rust_crates/
