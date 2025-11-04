@@ -26,11 +26,14 @@ import tempfile
 from pathlib import Path
 import argparse
 
-# Fix Windows console encoding
+# Fix Windows console encoding and make unbuffered for real-time output
 if sys.platform == 'win32':
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+else:
+    # Make stdout unbuffered on non-Windows
+    sys.stdout.reconfigure(line_buffering=True) if hasattr(sys.stdout, 'reconfigure') else None
 
 
 def get_conan_executable():
@@ -486,7 +489,7 @@ def upload_single_package(server_url, package_ref, profile, package_id=None):
             return 1
 
         # Good - we found it, use it
-        print(f"  Using package_id from dependency graph: {package_id[:8]}...")
+        print(f"  Using package_id from dependency graph: {package_id[:8]}...", flush=True)
     else:
         # Main package case: use profile to find the binary
         package_ids = get_package_binaries(package_ref, profile)
@@ -508,7 +511,7 @@ def upload_single_package(server_url, package_ref, profile, package_id=None):
 
         # Use the first matching package_id from profile
         package_id = package_ids[0]
-        print(f"  Using package_id from profile: {package_id[:8]}...")
+        print(f"  Using package_id from profile: {package_id[:8]}...", flush=True)
 
     # Get binary package path
     binary_cache_path = get_binary_package_path(package_ref, package_id)
@@ -527,29 +530,29 @@ def upload_single_package(server_url, package_ref, profile, package_id=None):
         return 1
 
     # Get dependency graph with profile
-    print(f"  Getting dependency graph...")
+    print(f"  Getting dependency graph...", flush=True)
     dependency_graph = get_dependency_graph(package_ref, package_id, cache_path, profile)
     if dependency_graph and 'graph' in dependency_graph:
         dep_count = len(dependency_graph['graph'].get('nodes', {})) - 1  # -1 for main package
         if dep_count > 0:
-            print(f"  ✓ Found {dep_count} dependencies")
+            print(f"  ✓ Found {dep_count} dependencies", flush=True)
         else:
-            print(f"  ✓ No dependencies")
+            print(f"  ✓ No dependencies", flush=True)
 
     # Create tarball and rust crate
     with tempfile.TemporaryDirectory() as tmpdir:
-        print(f"  Creating binary tarball...")
+        print(f"  Creating binary tarball...", flush=True)
         tarball_path = Path(tmpdir) / f"{package_ref.replace('/', '-')}-{package_id}.tgz"
         create_binary_tarball(package_ref, package_id, tarball_path)
 
         # Show tarball size
         tarball_size_kb = tarball_path.stat().st_size / 1024
-        print(f"  ✓ Binary tarball created ({tarball_size_kb:.1f} KB)")
+        print(f"  ✓ Binary tarball created ({tarball_size_kb:.1f} KB)", flush=True)
 
         # Generate Rust crate
         rust_crate_path = None
         try:
-            print(f"  Generating Rust crate...")
+            print(f"  Generating Rust crate...", flush=True)
             class RustArgs:
                 pass
             rust_args = RustArgs()
@@ -562,17 +565,17 @@ def upload_single_package(server_url, package_ref, profile, package_id=None):
                 exit_code, crate_path = rust_result
                 if exit_code == 0:
                     rust_crate_path = crate_path
-                    print(f"  ✓ Rust crate generated")
+                    print(f"  ✓ Rust crate generated", flush=True)
         except Exception as e:
-            print(f"  ⚠ Warning: Rust crate generation failed: {e}")
+            print(f"  ⚠ Warning: Rust crate generation failed: {e}", flush=True)
 
         # Upload
-        print(f"  Uploading to server...")
+        print(f"  Uploading to server...", flush=True)
         if upload_package(server_url, recipe_path, tarball_path, package_ref, package_id=package_id, dependency_graph=dependency_graph, rust_crate_path=rust_crate_path):
-            print(f"  ✓ Upload completed successfully")
+            print(f"  ✓ Upload completed successfully", flush=True)
             return 0
         else:
-            print(f"  ✗ Upload failed")
+            print(f"  ✗ Upload failed", flush=True)
             return 1
 
 
@@ -700,7 +703,7 @@ def cmd_upload(args):
     total_to_upload = len(missing_packages)
 
     for idx, (pkg_ref, pkg_id) in enumerate(missing_packages, 1):
-        print(f"\n📦 [{idx}/{total_to_upload}] Uploading {pkg_ref} ({pkg_id[:8]}...)...")
+        print(f"\n📦 [{idx}/{total_to_upload}] Uploading {pkg_ref} ({pkg_id[:8]}...)...", flush=True)
         result = upload_single_package(server_url, pkg_ref, profile, package_id=pkg_id)
         if result == 0:
             uploaded_count += 1
