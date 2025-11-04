@@ -468,16 +468,63 @@ def upload_single_package(server_url, package_ref, profile, package_id=None):
     package_ids = get_package_binaries(package_ref, profile)
     if not package_ids:
         print(f"  Error: No binary packages found for {package_ref} with profile {profile}")
+
+        # Try to find what package_ids ARE available
+        print(f"  Checking what binaries are available in cache...")
+        list_output = run_conan_command(['conan', 'list', f"{package_ref}:*"])
+        if list_output:
+            print(f"  Available binaries in cache:")
+            for line in list_output.split('\n'):
+                if ':' in line and package_ref in line:
+                    print(f"    {line.strip()}")
+
+        # If we have a specific package_id we're looking for, check if it exists
+        if package_id:
+            print(f"  Looking for specific package_id: {package_id}")
+            binary_path = get_binary_package_path(package_ref, package_id)
+            if binary_path:
+                print(f"  ✓ Found binary with package_id {package_id[:8]}... in cache")
+                print(f"  ✗ But it doesn't match the profile settings")
+                print(f"\n  This usually means the dependency was built with different settings.")
+                print(f"  The dependency graph contains package_id: {package_id[:8]}...")
+                print(f"  But profile '{profile}' would generate a different package_id.")
+            else:
+                print(f"  ✗ package_id {package_id[:8]}... not found in cache at all")
+
         return 1
 
     # Use specified package_id or first one
     if not package_id:
         package_id = package_ids[0]
+    else:
+        # Verify the specified package_id matches what the profile expects
+        if package_id not in package_ids:
+            print(f"  Warning: Specified package_id {package_id[:8]}... doesn't match profile")
+            print(f"  Profile '{profile}' expects package_id: {package_ids[0][:8]}...")
+            print(f"  But dependency graph has package_id: {package_id[:8]}...")
+
+            # Check if the specified package_id exists in cache
+            binary_path_check = get_binary_package_path(package_ref, package_id)
+            if binary_path_check:
+                print(f"  ✓ Specified package_id exists in cache, using it anyway")
+            else:
+                print(f"  ✗ Specified package_id not found in cache")
+                return 1
 
     # Get binary package path
     binary_cache_path = get_binary_package_path(package_ref, package_id)
     if not binary_cache_path:
-        print(f"  Error: Could not find binary package path")
+        print(f"  Error: Could not find binary package path for package_id: {package_id[:8]}...")
+
+        # Additional debugging
+        print(f"  Tried to find: {package_ref}:{package_id}")
+        list_output = run_conan_command(['conan', 'list', f"{package_ref}:*"])
+        if list_output:
+            print(f"  Available in cache:")
+            for line in list_output.split('\n'):
+                if package_ref in line:
+                    print(f"    {line.strip()}")
+
         return 1
 
     # Get dependency graph with profile
