@@ -889,40 +889,29 @@ def cmd_download_rust_crates(args):
 
     package_name, version = package_ref.split('/', 1)
 
-    # Determine package_id: either provided directly or from profile
-    package_id = None
-    if args.package_id:
-        package_id = args.package_id
-    elif hasattr(args, 'profile') and args.profile:
-        # Use profile to query the API for the matching binary
-        print(f"Using profile '{args.profile}' to find matching binary...")
-        profile_settings = parse_conan_profile(args.profile)
-        if not profile_settings:
-            print(f"Error: Could not parse profile '{args.profile}'")
-            return 1
+    # Use profile to query the API for the matching binary
+    print(f"Using profile '{args.profile}' to find matching binary...")
+    profile_settings = parse_conan_profile(args.profile)
+    if not profile_settings:
+        print(f"Error: Could not parse profile '{args.profile}'")
+        return 1
 
-        # Query the API with profile settings
-        query_url = f"{server_url}/api/packages/{package_name}/{version}/rust-crate"
-        try:
-            response = requests.get(query_url, params=profile_settings)
-            if response.status_code == 404:
-                print(f"Error: No binary found matching profile '{args.profile}'")
-                print(f"\nProfile settings:")
-                for key, value in profile_settings.items():
-                    print(f"  {key}: {value}")
-                return 1
-            response.raise_for_status()
-            data = response.json()
-            package_id = data['package']['package_id']
-            print(f"  Found matching binary: {package_id[:8]}...")
-        except Exception as e:
-            print(f"Error querying server with profile: {e}")
+    # Query the API with profile settings
+    query_url = f"{server_url}/api/packages/{package_name}/{version}/rust-crate"
+    try:
+        response = requests.get(query_url, params=profile_settings)
+        if response.status_code == 404:
+            print(f"Error: No binary found matching profile '{args.profile}'")
+            print(f"\nProfile settings:")
+            for key, value in profile_settings.items():
+                print(f"  {key}: {value}")
             return 1
-    else:
-        print("Error: Either --package-id or --profile is required when using --crates")
-        print(f"\nOptions:")
-        print(f"  1. Use --package-id <id> (find at: {server_url}/packages/{package_name}/)")
-        print(f"  2. Use --profile <name> to auto-select binary matching your profile")
+        response.raise_for_status()
+        data = response.json()
+        package_id = data['package']['package_id']
+        print(f"  Found matching binary: {package_id[:8]}...")
+    except Exception as e:
+        print(f"Error querying server with profile: {e}")
         return 1
 
     output_dir = args.output or './rust_crates'
@@ -1666,7 +1655,8 @@ def main():
     )
     download_parser.add_argument(
         '-pr', '--profile',
-        help='Conan profile to use (e.g., default, or path to profile file)'
+        required=True,
+        help='Conan profile to use (REQUIRED - e.g., default, or path to profile file)'
     )
     download_parser.add_argument(
         '-o', '--output',
@@ -1680,11 +1670,7 @@ def main():
     download_parser.add_argument(
         '--crates',
         action='store_true',
-        help='Download Rust crates instead of Conan packages (requires --package-id or --profile)'
-    )
-    download_parser.add_argument(
-        '--package-id',
-        help='Package ID for Rust crate download (use this OR --profile with --crates)'
+        help='Download Rust crates instead of Conan packages'
     )
 
     # Generate Rust crate command
