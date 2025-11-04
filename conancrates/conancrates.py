@@ -882,25 +882,55 @@ def cmd_download_rust_crates(args):
     """Download Rust crates with dependencies"""
     package_ref = args.package_ref
     server_url = args.server or "http://localhost:8000"
-    
+
     if '/' not in package_ref:
         print(f"Error: Invalid package reference. Use format: package_name/version")
         return 1
-    
+
     package_name, version = package_ref.split('/', 1)
-    
-    if not args.package_id:
-        print("Error: --package-id is required when using --crates")
-        print(f"\nFind the package_id at: {server_url}/packages/{package_name}/")
+
+    # Determine package_id: either provided directly or from profile
+    package_id = None
+    if args.package_id:
+        package_id = args.package_id
+    elif hasattr(args, 'profile') and args.profile:
+        # Use profile to query the API for the matching binary
+        print(f"Using profile '{args.profile}' to find matching binary...")
+        profile_settings = parse_conan_profile(args.profile)
+        if not profile_settings:
+            print(f"Error: Could not parse profile '{args.profile}'")
+            return 1
+
+        # Query the API with profile settings
+        query_url = f"{server_url}/api/packages/{package_name}/{version}/rust-crate"
+        try:
+            response = requests.get(query_url, params=profile_settings)
+            if response.status_code == 404:
+                print(f"Error: No binary found matching profile '{args.profile}'")
+                print(f"\nProfile settings:")
+                for key, value in profile_settings.items():
+                    print(f"  {key}: {value}")
+                return 1
+            response.raise_for_status()
+            data = response.json()
+            package_id = data['package']['package_id']
+            print(f"  Found matching binary: {package_id[:8]}...")
+        except Exception as e:
+            print(f"Error querying server with profile: {e}")
+            return 1
+    else:
+        print("Error: Either --package-id or --profile is required when using --crates")
+        print(f"\nOptions:")
+        print(f"  1. Use --package-id <id> (find at: {server_url}/packages/{package_name}/)")
+        print(f"  2. Use --profile <name> to auto-select binary matching your profile")
         return 1
-    
-    package_id = args.package_id
+
     output_dir = args.output or './rust_crates'
-    
+
     import os
     os.makedirs(output_dir, exist_ok=True)
-    
-    print("ConanCrates Rust Crate Download")
+
+    print("\nConanCrates Rust Crate Download")
     print("=" * 60)
     print(f"Package: {package_name}/{version}")
     print(f"Package ID: {package_id}")
@@ -908,7 +938,7 @@ def cmd_download_rust_crates(args):
     print(f"Output: {output_dir}")
     print("=" * 60)
     print()
-    
+
     # Get package info
     print("1. Querying package information...")
     info_url = f"{server_url}/api/packages/{package_name}/{version}/binaries/{package_id}/info"
@@ -1650,11 +1680,11 @@ def main():
     download_parser.add_argument(
         '--crates',
         action='store_true',
-        help='Download Rust crates instead of Conan packages (requires --package-id)'
+        help='Download Rust crates instead of Conan packages (requires --package-id or --profile)'
     )
     download_parser.add_argument(
         '--package-id',
-        help='Package ID for Rust crate download (required with --crates)'
+        help='Package ID for Rust crate download (use this OR --profile with --crates)'
     )
 
     # Generate Rust crate command
