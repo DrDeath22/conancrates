@@ -558,6 +558,7 @@ def upload_single_package(server_url, package_ref, profile, package_id=None):
             rust_args = RustArgs()
             rust_args.package_ref = package_ref
             rust_args.profile = profile
+            rust_args.package_id = package_id  # Pass the package_id we already have
             rust_args.output = tmpdir  # Use temp dir
 
             rust_result = cmd_generate_rust_crate(rust_args)
@@ -1318,10 +1319,18 @@ def cmd_generate_rust_crate(args):
     profile = args.profile
     output_dir = args.output or './rust_crates'
 
+    # package_id is now mandatory (passed from upload_single_package)
+    package_id = getattr(args, 'package_id', None)
+    if not package_id:
+        print(f"✗ Error: package_id is required for Rust crate generation")
+        print(f"  This function should only be called from upload_single_package()")
+        return 1
+
     print(f"ConanCrates Rust Crate Generator")
     print(f"{'='*60}")
     print(f"Package: {package_ref}")
     print(f"Profile: {profile}")
+    print(f"Package ID: {package_id[:8]}...")
     print(f"Output: {output_dir}")
     print(f"{'='*60}\n")
 
@@ -1332,13 +1341,7 @@ def cmd_generate_rust_crate(args):
         print(f"  Run: conan create <path> or download it first")
         return 1
 
-    # Get binary package path
-    package_ids = get_package_binaries(package_ref, profile)
-    if not package_ids:
-        print(f"✗ Error: No binary package found for profile {profile}")
-        return 1
-
-    package_id = package_ids[0]
+    # Get binary package path using the provided package_id
     binary_path = get_binary_package_path(package_ref, package_id)
     if not binary_path:
         print(f"✗ Error: Binary package path not found for package_id {package_id}")
