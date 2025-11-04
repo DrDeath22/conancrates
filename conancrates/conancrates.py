@@ -704,7 +704,9 @@ def cmd_upload(args):
 
     for idx, (pkg_ref, pkg_id) in enumerate(missing_packages, 1):
         print(f"\n📦 [{idx}/{total_to_upload}] Uploading {pkg_ref} ({pkg_id[:8]}...)...", flush=True)
+
         result = upload_single_package(server_url, pkg_ref, profile, package_id=pkg_id)
+
         if result == 0:
             uploaded_count += 1
             print(f"  ✓ Success! ({uploaded_count}/{total_to_upload} completed)")
