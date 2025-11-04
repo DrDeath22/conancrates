@@ -17,6 +17,7 @@ python manage.py runserver
 **Key Documentation:**
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Complete deployment guide with MinIO setup
 - **[CLI_GUIDE.md](CLI_GUIDE.md)** - CLI tool for uploading and downloading packages
+- **[RUST_CRATES_GUIDE.md](RUST_CRATES_GUIDE.md)** - Using ConanCrates with Rust projects
 - [DEPENDENCY_RESOLUTION_DESIGN.md](.claude/DEPENDENCY_RESOLUTION_DESIGN.md) - Architecture for dependency resolution
 - [RESUME_SESSION.md](RESUME_SESSION.md) - Latest development status and TODO list
 
@@ -71,13 +72,15 @@ ConanCrates/
 - **📦 Package Management**: Browse, search, and manage Conan packages
 - **🔢 Version Tracking**: Multiple versions per package with full metadata
 - **💾 Binary Packages**: Pre-compiled binaries for different platforms (OS, arch, compiler)
+- **🦀 Rust Crate Generation**: Automatic `-sys` crate generation for Rust FFI bindings
 - **🔗 Smart Dependencies**: Per-binary dependency tracking with stored dependency graphs
 - **🏷️ Topics/Tags**: Categorize packages by topic for easy discovery
 - **🔍 Search & Filtering**: Find packages by name, description, license, or topic
 - **👨‍💼 Admin Interface**: Full-featured Django admin for package management
 - **🎨 Clean UI**: User-friendly web interface for browsing packages
-- **⬇️ Direct Downloads**: Download binaries and bundles without Conan client
+- **⬇️ Direct Downloads**: Download binaries, bundles, and Rust crates
 - **📊 Dependency Resolution**: Stores pre-computed dependency graphs (lock file pattern)
+- **🧹 Automatic Cleanup**: MinIO storage cleanup when packages are deleted
 - **☁️ MinIO Storage**: S3-compatible object storage for package binaries
 - **🔧 CLI Tool**: `conancrates.py` for uploading and downloading packages
 

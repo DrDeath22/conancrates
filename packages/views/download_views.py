@@ -1238,7 +1238,8 @@ def get_package_info_api(request, package_name, version, package_id):
                 dependencies.append({
                     'name': dep_name,
                     'version': dep_version,
-                    'package_id': dep_package_id
+                    'package_id': dep_package_id,
+                    'rust_crate_url': f"/packages/{dep_name}/{dep_version}/binaries/{dep_package_id}/rust-crate/"
                 })
 
     response_data = {
@@ -1326,7 +1327,8 @@ def get_rust_crate_by_settings_api(request, package_name, version):
                 dependencies.append({
                     'name': dep_name,
                     'version': dep_version,
-                    'package_id': dep_package_id
+                    'package_id': dep_package_id,
+                    'rust_crate_url': f"/packages/{dep_name}/{dep_version}/binaries/{dep_package_id}/rust-crate/"
                 })
 
     response_data = {
